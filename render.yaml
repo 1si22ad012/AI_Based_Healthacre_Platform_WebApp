@@ -1,13 +1,14 @@
+
 services:
   - type: web
     name: healthcare-security
-    env: python
+    runtime: python
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate --noinput
     startCommand: daphne -b 0.0.0.0 -p $PORT config.asgi:application
     healthCheckPath: /healthz/
     envVars:
       - key: PYTHON_VERSION
-        value: 3.13.0
+        value: "3.13.0"
       - key: DEBUG
         value: "False"
       - key: SECRET_KEY
@@ -24,16 +25,17 @@ services:
           property: connectionString
       - key: REDIS_URL
         fromService:
-          type: redis
+          type: keyvalue
           name: healthcare-redis
           property: connectionString
       - key: ENCRYPTION_KEY_B64
         sync: false
 
-  - type: redis
+  - type: keyvalue
     name: healthcare-redis
     plan: free
     maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
 
 databases:
   - name: healthcare-db
