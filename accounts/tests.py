@@ -4,6 +4,8 @@ from django.urls import reverse
 from .models import User, PatientProfile, DoctorProfile, LabTechProfile
 
 
+
+
 def make_user(email, role, password="TestPass123!Secure"):
     user = User.objects.create_user(email=email, password=password, first_name="Test", last_name=role, role=role)
     if role == "patient":
@@ -85,3 +87,45 @@ class AuthTests(TestCase):
         self.assertEqual(response.status_code, 201)
         user = User.objects.get(email="apiuser@test.com")
         self.assertEqual(user.role, "patient")
+
+    def test_doctor_login_redirects_to_doctor_dashboard(self):
+        make_user("doctor@test.com", "doctor")
+        response = self.client.post(reverse("accounts:login"), {"email": "doctor@test.com", "password": "TestPass123!Secure"})
+        self.assertEqual(response.status_code, 302)
+        response = self.client.get(reverse("accounts:dashboard"))
+        self.assertContains(response, "Doctor Dashboard")
+
+    def test_lab_tech_login_redirects_to_lab_dashboard(self):
+        make_user("labtech@test.com", "lab_tech")
+        response = self.client.post(reverse("accounts:login"), {"email": "labtech@test.com", "password": "TestPass123!Secure"})
+        self.assertEqual(response.status_code, 302)
+        response = self.client.get(reverse("accounts:dashboard"))
+        self.assertContains(response, "Laboratory Dashboard")
+
+    def test_admin_login_redirects_to_admin_dashboard(self):
+        admin = User.objects.create_superuser(email="adminrole@test.com", password="TestPass123!Secure", first_name="Admin", last_name="Role")
+        response = self.client.post(reverse("accounts:login"), {"email": "adminrole@test.com", "password": "TestPass123!Secure"})
+        self.assertEqual(response.status_code, 302)
+        response = self.client.get(reverse("accounts:dashboard"))
+        self.assertContains(response, "Administrator Dashboard")
+
+    def test_unsupported_role_cannot_access_dashboard(self):
+        user = make_user("unknown@test.com", "patient")
+        user.role = "unsupported"
+        user.save(update_fields=["role"])
+        self.client.login(email="unknown@test.com", password="TestPass123!Secure")
+        response = self.client.get(reverse("accounts:dashboard"))
+        self.assertEqual(response.status_code, 403)
+
+    def test_patient_with_missing_profile_can_access_dashboard(self):
+        user = User.objects.create_user(email="missingprofile@test.com", password="TestPass123!Secure", first_name="Missing", last_name="Profile", role="patient")
+        self.client.login(email="missingprofile@test.com", password="TestPass123!Secure")
+        response = self.client.get(reverse("accounts:dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Patient Dashboard")
+
+    def test_doctor_cannot_access_user_management(self):
+        make_user("doctorperm@test.com", "doctor")
+        self.client.login(email="doctorperm@test.com", password="TestPass123!Secure")
+        response = self.client.get(reverse("accounts:user_management"))
+        self.assertEqual(response.status_code, 403)

@@ -5,6 +5,8 @@ from django.core.cache import cache
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
+
+
 from audit.services import create_audit_event, create_security_event
 from .forms import AdminUserForm, ProfileForm, RegistrationForm
 from .models import PatientProfile, Role, User
@@ -99,6 +101,17 @@ def profile_view(request):
     return render(request, "accounts/profile.html", {"form": form})
 
 
+def _normalize_role(user):
+    role = str(getattr(user, "role", "") or "").strip().lower().replace(" ", "_").replace("-", "_")
+    aliases = {
+        "laboratorytechnician": "lab_tech",
+        "labtechnician": "lab_tech",
+        "labtech": "lab_tech",
+        "administrator": "admin",
+    }
+    return aliases.get(role, role)
+
+
 def dashboard_router(request):
     if not request.user.is_authenticated:
         return render(request, "accounts/landing.html")
@@ -111,9 +124,12 @@ def dashboard_router(request):
     from django.db.models import Count
 
     user = request.user
-    role = user.role
+    role = _normalize_role(user)
+
     if role == Role.PATIENT:
-        pp = user.patient_profile
+        from .models import PatientProfile
+
+        pp, _ = PatientProfile.objects.get_or_create(user=user)
         context = {
             "appointments_count": Appointment.objects.filter(patient=pp).count(),
             "prescriptions_count": Prescription.objects.filter(patient=pp).count(),
@@ -123,6 +139,9 @@ def dashboard_router(request):
         }
         return render(request, "accounts/dashboard_patient.html", context)
     if role == Role.DOCTOR:
+        from .models import DoctorProfile
+
+        DoctorProfile.objects.get_or_create(user=user)
         context = {
             "appointments_count": Appointment.objects.filter(doctor=user).count(),
             "pending_labs": LabTestRequest.objects.filter(doctor=user, status="requested").count(),
@@ -138,6 +157,9 @@ def dashboard_router(request):
         context["patients_count"] = PatientProfile.objects.filter(id__in=patient_ids).count()
         return render(request, "accounts/dashboard_doctor.html", context)
     if role == Role.LAB_TECH:
+        from .models import LabTechProfile
+
+        LabTechProfile.objects.get_or_create(user=user)
         context = {
             "pending_requests": LabTestRequest.objects.filter(assigned_technician=user, status__in=["requested", "in_progress"]).count(),
             "completed_tests": LabTestRequest.objects.filter(assigned_technician=user, status="completed").count(),
@@ -164,8 +186,8 @@ def dashboard_router(request):
             "recent_events": SecurityEvent.objects.all()[:10],
         }
         return render(request, "accounts/dashboard_admin.html", context)
-    return render(request, "accounts/dashboard_patient.html")
-
+    messages.error(request, "Your account role is not supported.")
+    return render(request, "errors/403.html", status=403)
 
 @login_required
 def user_management_view(request):
