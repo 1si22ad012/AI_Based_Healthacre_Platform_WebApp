@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Laboratory Dashboard{% endblock %}
+{% block content %}
+<h2>Laboratory Dashboard</h2>
+<div class="grid grid-4">
+  <div class="card stat"><div class="value">{{ pending_requests }}</div><div class="label">My Pending Tests</div></div>
+  <div class="card stat"><div class="value">{{ completed_tests }}</div><div class="label">Completed Tests</div></div>
+  <div class="card stat"><div class="value">{{ reports_uploaded }}</div><div class="label">Reports Uploaded</div></div>
+  <div class="card stat"><div class="value">{{ all_pending }}</div><div class="label">All Pending Tests</div></div>
+</div>
+<div class="card">
+  <h3>Quick Actions</h3>
+  <a class="btn" href="{% url 'laboratory:upload_report' %}">Upload Encrypted Report</a>
+  <a class="btn btn-secondary" href="{% url 'laboratory:requests' %}">View Requests</a>
+</div>
+{% endblock %}

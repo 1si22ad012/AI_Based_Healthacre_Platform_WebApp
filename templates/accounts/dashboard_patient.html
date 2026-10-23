@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Patient Dashboard{% endblock %}
+{% block content %}
+<h2>Patient Dashboard</h2>
+<div class="grid grid-4">
+  <div class="card stat"><div class="value">{{ appointments_count }}</div><div class="label">Appointments</div></div>
+  <div class="card stat"><div class="value">{{ prescriptions_count }}</div><div class="label">Prescriptions</div></div>
+  <div class="card stat"><div class="value">{{ reports_count }}</div><div class="label">Lab Results</div></div>
+  <div class="card stat"><div class="value">{{ records_count }}</div><div class="label">Medical Records</div></div>
+</div>
+<div class="card">
+  <h3>Quick Actions</h3>
+  <a class="btn" href="{% url 'appointments:create' %}">Book Appointment</a>
+  <a class="btn btn-secondary" href="{% url 'patients:records' %}">View Records</a>
+  <a class="btn btn-secondary" href="{% url 'prescriptions:list' %}">View Prescriptions</a>
+  <a class="btn btn-secondary" href="{% url 'laboratory:reports' %}">View Lab Results</a>
+</div>
+{% endblock %}

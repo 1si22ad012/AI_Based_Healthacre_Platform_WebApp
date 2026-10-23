@@ -1,0 +1,48 @@
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Databases and backups
+db.sqlite3
+*.sqlite3
+*.sql
+*.dump
+*.bak
+
+# User uploads and private data
+media/
+uploads/
+
+# Generated static files
+staticfiles/
+
+# Logs and test artifacts
+*.log
+.coverage
+htmlcov/
+.pytest_cache/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Private keys
+*.key
+*.pem

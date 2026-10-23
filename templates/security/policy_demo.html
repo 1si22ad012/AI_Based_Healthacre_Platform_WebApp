@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Policy Demo{% endblock %}
+{% block content %}
+<h2>Adaptive Encryption Policy Demo</h2>
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="grid grid-2">
+      <div class="form-group"><label>Sensitivity</label>
+        <select name="sensitivity"><option>low</option><option>medium</option><option selected>high</option><option>critical</option></select></div>
+      <div class="form-group"><label>Risk level</label>
+        <select name="risk_level"><option>low</option><option selected>medium</option><option>high</option><option>critical</option></select></div>
+      <div class="form-group"><label>File size KB</label><input name="file_size_kb" type="number" value="10"></div>
+      <div class="form-group"><label>CPU utilization</label><input name="cpu_utilization" type="number" value="20"></div>
+      <div class="form-group"><label>Network latency</label><input name="network_latency" type="number" value="50"></div>
+      <div class="form-group"><label>Recent security events</label><input name="recent_security_events" type="number" value="0"></div>
+      <div class="form-group"><label>Anomaly score</label><input name="anomaly_score" type="number" step="0.01" value="0.1"></div>
+      <div class="form-group"><label>Access frequency</label><input name="access_frequency" type="number" value="2"></div>
+    </div>
+    <button class="btn" type="submit">Evaluate Policy</button>
+  </form>
+</div>
+{% if decision %}
+<div class="card">
+  <h3>Decision</h3>
+  <table>
+    <tr><th>Policy</th><td>{{ decision.policy }}</td></tr>
+    <tr><th>Model recommendation</th><td>{{ decision.model_recommendation }}</td></tr>
+    <tr><th>Model confidence</th><td>{{ decision.model_confidence }}</td></tr>
+    <tr><th>Risk category</th><td>{{ decision.risk_category }}</td></tr>
+    <tr><th>Algorithm</th><td>{{ decision.algorithm }}</td></tr>
+    <tr><th>Allowed</th><td>{{ decision.allowed }}</td></tr>
+    <tr><th>Fallback used</th><td>{{ decision.fallback_used }}</td></tr>
+    <tr><th>Rationale</th><td>{{ decision.rationale }}</td></tr>
+    <tr><th>Duration ms</th><td>{{ decision.duration_ms }}</td></tr>
+    <tr><th>Model version</th><td>{{ decision.model_version }}</td></tr>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

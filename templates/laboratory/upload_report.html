@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Upload Report{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Upload Encrypted Lab Report</h2>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <p>Request IDs: {% for r in requests %}{{ r.id }}={{ r.test_type }} ({{ r.patient.user.email }}) {% endfor %}</p>
+    <button class="btn" type="submit">Upload</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Create Prescription{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Issue Prescription</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <p>Patient IDs: {% for p in patients %}{{ p.id }}={{ p.user.email }} {% endfor %}</p>
+    <button class="btn" type="submit">Create and Sign</button>
+  </form>
+</div>
+{% endblock %}

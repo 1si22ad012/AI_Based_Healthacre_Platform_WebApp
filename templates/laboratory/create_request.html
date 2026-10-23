@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Create Lab Request{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Create Lab Request</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <p>Patient IDs: {% for p in patients %}{{ p.id }}={{ p.user.email }} {% endfor %}</p>
+    <p>Technician IDs: {% for t in technicians %}{{ t.id }}={{ t.email }} {% endfor %}</p>
+    <button class="btn" type="submit">Create</button>
+  </form>
+</div>
+{% endblock %}

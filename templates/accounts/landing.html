@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>AI-Based Security for Healthcare Applications</h1>
+  <p>Protect patient records with adaptive AES-GCM encryption, ECC key exchange, digital signatures, and AI anomaly detection.</p>
+  <a class="btn" href="{% url 'accounts:login' %}">Login</a>
+  <a class="btn btn-secondary" href="{% url 'accounts:register' %}">Register</a>
+</div>
+<div class="grid grid-4">
+  <div class="card stat"><div class="value">AES-GCM</div><div class="label">Authenticated encryption</div></div>
+  <div class="card stat"><div class="value">ECC</div><div class="label">Key exchange</div></div>
+  <div class="card stat"><div class="value">RF</div><div class="label">Adaptive policy</div></div>
+  <div class="card stat"><div class="value">IF/SVM</div><div class="label">Anomaly detection</div></div>
+</div>
+{% endblock %}

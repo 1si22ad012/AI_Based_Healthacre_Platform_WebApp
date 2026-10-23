@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}View Record{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>{{ record.title }}</h2>
+  <p><strong>Sensitivity:</strong> {{ record.sensitivity }} | <strong>Algorithm:</strong> {{ record.algorithm }} | <strong>Key version:</strong> {{ record.key_version }}</p>
+  <pre style="white-space:pre-wrap;background:#f9fafb;padding:12px;border-radius:8px;">{{ plaintext }}</pre>
+</div>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Prescription{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>{{ rx.title }}</h2>
+  <p><strong>Patient:</strong> {{ rx.patient.user.email }} | <strong>Doctor:</strong> {{ rx.doctor.email }} | <strong>Status:</strong> {{ rx.status }}</p>
+  <p><strong>Signature valid:</strong> {% if valid_signature %}Yes{% else %}No{% endif %}</p>
+  <pre style="white-space:pre-wrap;background:#f9fafb;padding:12px;border-radius:8px;">{{ payload }}</pre>
+  <h3>Items</h3>
+  <table>
+    <tr><th>Medication</th><th>Dosage</th><th>Frequency</th><th>Duration</th></tr>
+    {% for item in rx.items.all %}
+    <tr><td>{{ item.medication_name }}</td><td>{{ item.dosage }}</td><td>{{ item.frequency }}</td><td>{{ item.duration }}</td></tr>
+    {% empty %}
+    <tr><td colspan="4" class="empty">No items</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Doctor Dashboard{% endblock %}
+{% block content %}
+<h2>Doctor Dashboard</h2>
+<div class="grid grid-4">
+  <div class="card stat"><div class="value">{{ patients_count }}</div><div class="label">Assigned Patients</div></div>
+  <div class="card stat"><div class="value">{{ appointments_count }}</div><div class="label">Appointments</div></div>
+  <div class="card stat"><div class="value">{{ pending_labs }}</div><div class="label">Pending Lab Requests</div></div>
+  <div class="card stat"><div class="value">{{ prescriptions_count }}</div><div class="label">Prescriptions</div></div>
+</div>
+<div class="card">
+  <h3>Quick Actions</h3>
+  <a class="btn" href="{% url 'patients:create_record' %}">Create Encrypted Record</a>
+  <a class="btn btn-secondary" href="{% url 'prescriptions:create' %}">Issue Prescription</a>
+  <a class="btn btn-secondary" href="{% url 'laboratory:create_request' %}">Request Lab Test</a>
+  <a class="btn btn-secondary" href="{% url 'appointments:create' %}">Schedule Appointment</a>
+</div>
+{% endblock %}

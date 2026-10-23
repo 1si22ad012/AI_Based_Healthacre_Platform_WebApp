@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Encryption Activity{% endblock %}
+{% block content %}
+<h2>Encryption Activity</h2>
+<div class="card">
+  <table>
+    <tr><th>Time</th><th>User</th><th>Operation</th><th>Policy</th><th>Algorithm</th><th>Success</th><th>Duration ms</th></tr>
+    {% for op in operations %}
+    <tr>
+      <td>{{ op.created_at }}</td>
+      <td>{{ op.user.email|default:"-" }}</td>
+      <td>{{ op.operation }}</td>
+      <td>{{ op.policy }}</td>
+      <td>{{ op.algorithm }}</td>
+      <td>{{ op.success }}</td>
+      <td>{{ op.duration_ms }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" class="empty">No operations</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

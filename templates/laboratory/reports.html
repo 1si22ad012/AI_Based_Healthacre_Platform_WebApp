@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Lab Reports{% endblock %}
+{% block content %}
+<h2>Laboratory Reports</h2>
+<div class="card">
+  <table>
+    <tr><th>Test</th><th>Patient</th><th>Status</th><th>Result</th><th>Download</th><th></th></tr>
+    {% for row in rows %}
+    {% with r=row.report %}
+    <tr>
+      <td>{{ r.request.test_type }}</td>
+      <td>{{ r.request.patient.user.email }}</td>
+      <td>{{ r.status }}</td>
+      <td>{{ row.result_text }}</td>
+      <td>{% if row.document %}<a class="btn btn-secondary" href="{% url 'laboratory:download_document' row.document.id %}">Download</a>{% endif %}</td>
+      <td>
+        {% if request.user.is_lab_tech or request.user.is_administrator %}
+        <form method="post" action="{% url 'laboratory:reject_report' r.id %}" style="display:inline;">
+          {% csrf_token %}
+          <button class="btn btn-danger" type="submit">Reject</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endwith %}
+    {% empty %}
+    <tr><td colspan="6" class="empty">No reports</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

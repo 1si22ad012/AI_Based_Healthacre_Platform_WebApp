@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Create Encrypted Record{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Create Encrypted Medical Record</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="btn" type="submit">Encrypt and Save</button>
+  </form>
+  <p class="empty">Patient ID options: {% for p in patients %}{{ p.id }}={{ p.user.email }} {% endfor %}</p>
+</div>
+{% endblock %}

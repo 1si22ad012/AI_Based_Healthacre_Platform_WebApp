@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Key Management{% endblock %}
+{% block content %}
+<h2>Key Management</h2>
+<div class="card">
+  <form method="post" action="{% url 'security:rotate_key' %}">
+    {% csrf_token %}
+    <button class="btn btn-danger" type="submit">Rotate Active Key</button>
+  </form>
+</div>
+<div class="card">
+  <table>
+    <tr><th>Version</th><th>Algorithm</th><th>Status</th><th>Fingerprint</th><th>Created</th></tr>
+    {% for key in keys %}
+    <tr>
+      <td>{{ key.version }}</td>
+      <td>{{ key.algorithm }}</td>
+      <td>{{ key.status }}</td>
+      <td>{{ key.fingerprint|truncatechars:16 }}</td>
+      <td>{{ key.created_at }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" class="empty">No keys</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

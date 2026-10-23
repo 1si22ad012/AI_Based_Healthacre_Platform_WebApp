@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Patient Records{% endblock %}
+{% block content %}
+<h2>Patient Records</h2>
+<div class="card">
+  <form method="get">
+    <label>Select patient</label>
+    <select name="patient" onchange="this.form.submit()">
+      <option value="">-- choose --</option>
+      {% for p in patients %}
+      <option value="{{ p.id }}" {% if selected_patient and p.id == selected_patient.id %}selected{% endif %}>{{ p.user.email }} ({{ p.patient_number }})</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+{% if selected_patient %}
+<div class="card">
+  <h3>Records for {{ selected_patient.user.email }}</h3>
+  <table>
+    <tr><th>Title</th><th>Sensitivity</th><th>Algorithm</th><th>Created</th><th></th></tr>
+    {% for r in records %}
+    <tr>
+      <td>{{ r.title }}</td>
+      <td>{{ r.sensitivity }}</td>
+      <td>{{ r.algorithm }}</td>
+      <td>{{ r.created_at }}</td>
+      <td><a class="btn btn-secondary" href="{% url 'patients:view_record' r.id %}">View</a></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" class="empty">No records</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

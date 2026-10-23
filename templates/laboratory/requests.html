@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Lab Requests{% endblock %}
+{% block content %}
+<h2>Laboratory Requests</h2>
+<div class="card"><a class="btn" href="{% url 'laboratory:create_request' %}">New Request</a></div>
+<div class="card">
+  <table>
+    <tr><th>Patient</th><th>Test</th><th>Priority</th><th>Status</th><th>Technician</th></tr>
+    {% for r in requests %}
+    <tr>
+      <td>{{ r.patient.user.email }}</td>
+      <td>{{ r.test_type }}</td>
+      <td>{{ r.priority }}</td>
+      <td>{{ r.status }}</td>
+      <td>{{ r.assigned_technician.email|default:"-" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" class="empty">No requests</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

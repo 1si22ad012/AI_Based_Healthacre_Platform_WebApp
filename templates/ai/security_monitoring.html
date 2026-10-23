@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Security Monitoring{% endblock %}
+{% block content %}
+<h2>Security Monitoring</h2>
+<div class="card">
+  <h3>Recent Security Events</h3>
+  <table>
+    <tr><th>Time</th><th>Actor</th><th>Type</th><th>Severity</th><th>Risk</th></tr>
+    {% for e in events %}
+    <tr><td>{{ e.created_at }}</td><td>{{ e.actor.email|default:"-" }}</td><td>{{ e.event_type }}</td><td>{{ e.severity }}</td><td>{{ e.risk_score }}</td></tr>
+    {% empty %}
+    <tr><td colspan="5" class="empty">No events</td></tr>
+    {% endfor %}
+  </table>
+</div>
+<div class="card">
+  <h3>Anomaly Alerts</h3>
+  <table>
+    <tr><th>Time</th><th>Detector</th><th>Score</th><th>Status</th></tr>
+    {% for a in alerts %}
+    <tr><td>{{ a.created_at }}</td><td>{{ a.detector }}</td><td>{{ a.score }}</td><td>{{ a.status }}</td></tr>
+    {% empty %}
+    <tr><td colspan="4" class="empty">No alerts</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Administrator Dashboard{% endblock %}
+{% block content %}
+<h2>Administrator Dashboard</h2>
+<div class="grid grid-4">
+  <div class="card stat"><div class="value">{{ total_users }}</div><div class="label">Total Users</div></div>
+  <div class="card stat"><div class="value">{{ active_users }}</div><div class="label">Active Accounts</div></div>
+  <div class="card stat"><div class="value">{{ suspended_users }}</div><div class="label">Suspended Accounts</div></div>
+  <div class="card stat"><div class="value">{{ appointments_total }}</div><div class="label">Appointments</div></div>
+</div>
+<div class="grid grid-4">
+  <div class="card stat"><div class="value">{{ pending_labs }}</div><div class="label">Pending Lab Requests</div></div>
+  <div class="card stat"><div class="value">{{ recent_security_events }}</div><div class="label">Security Events</div></div>
+  <div class="card stat"><div class="value">{{ open_alerts }}</div><div class="label">Open Anomaly Alerts</div></div>
+  <div class="card stat"><div class="value">{{ encryption_ops }}</div><div class="label">Encryption Operations</div></div>
+</div>
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Users by Role</h3>
+    <table>
+      <tr><th>Role</th><th>Count</th></tr>
+      {% for role, count in role_counts.items %}
+      <tr><td>{{ role }}</td><td>{{ count }}</td></tr>
+      {% empty %}
+      <tr><td colspan="2" class="empty">No users</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div class="card">
+    <h3>Key Management</h3>
+    <table>
+      <tr><th>Version</th><th>Status</th></tr>
+      {% for key in keys %}
+      <tr><td>{{ key.version }}</td><td>{{ key.status }}</td></tr>
+      {% empty %}
+      <tr><td colspan="2" class="empty">No keys</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+<div class="card">
+  <h3>Recent Security Events</h3>
+  <table>
+    <tr><th>Time</th><th>Type</th><th>Severity</th></tr>
+    {% for event in recent_events %}
+    <tr><td>{{ event.created_at }}</td><td>{{ event.event_type }}</td><td>{{ event.severity }}</td></tr>
+    {% empty %}
+    <tr><td colspan="3" class="empty">No events</td></tr>
+    {% endfor %}
+  </table>
+</div>
+<div class="card">
+  <h3>Recent Audit Events</h3>
+  <table>
+    <tr><th>Time</th><th>Action</th><th>Result</th></tr>
+    {% for event in recent_audit %}
+    <tr><td>{{ event.created_at }}</td><td>{{ event.action }}</td><td>{{ event.result }}</td></tr>
+    {% empty %}
+    <tr><td colspan="3" class="empty">No audit events</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

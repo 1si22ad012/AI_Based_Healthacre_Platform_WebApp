@@ -1,0 +1,66 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}AI Healthcare Security{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <div class="navbar">
+    <div><strong>AI-Based Security for Healthcare Applications</strong></div>
+    <div>
+      {% if user.is_authenticated %}
+        <span>{{ user.full_name }} ({{ user.get_role_display }})</span>
+        <a href="{% url 'accounts:dashboard' %}">Dashboard</a>
+        <a href="{% url 'accounts:profile' %}">Profile</a>
+        <a href="{% url 'accounts:logout' %}">Logout</a>
+      {% else %}
+        <a href="{% url 'accounts:login' %}">Login</a>
+        <a href="{% url 'accounts:register' %}">Register</a>
+      {% endif %}
+    </div>
+  </div>
+  {% if user.is_authenticated %}
+  <div class="layout">
+    <aside class="sidebar">
+      <a href="{% url 'accounts:dashboard' %}">Dashboard</a>
+      <a href="{% url 'patients:records' %}">Patient Records</a>
+      <a href="{% url 'appointments:list' %}">Appointments</a>
+      <a href="{% url 'prescriptions:list' %}">Prescriptions</a>
+      <a href="{% url 'laboratory:requests' %}">Lab Requests</a>
+      <a href="{% url 'laboratory:reports' %}">Lab Reports</a>
+      <a href="{% url 'security:encryption_activity' %}">Encryption Activity</a>
+      <a href="{% url 'security:key_management' %}">Key Management</a>
+      <a href="{% url 'security:policy_demo' %}">Policy Demo</a>
+      <a href="{% url 'ai:monitoring' %}">Security Monitoring</a>
+      <a href="{% url 'ai:anomaly_alerts' %}">Anomaly Alerts</a>
+      <a href="{% url 'ai:detect_demo' %}">Anomaly Detect Demo</a>
+      <a href="{% url 'audit:audit_log' %}">Audit Log</a>
+      <a href="{% url 'notifications:list' %}">Notifications ({{ unread_notifications }})</a>
+      {% if user.is_administrator %}
+      <a href="{% url 'accounts:user_management' %}">User Management</a>
+      {% endif %}
+      <div style="margin-top:20px; font-size:12px; color:var(--muted);">
+        WebSocket: <span id="ws-status">connecting</span>
+      </div>
+    </aside>
+    <main class="main">
+  {% else %}
+    <main class="container">
+  {% endif %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-{% if message.tags == 'error' %}error{% elif message.tags == 'warning' %}warning{% else %}success{% endif %}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  {% if user.is_authenticated %}</div>{% endif %}
+  <div id="toast" class="toast"></div>
+  <script src="{% static 'js/app.js' %}"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>
