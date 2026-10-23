@@ -27,35 +27,61 @@ This project aims to improve healthcare data security by combining encryption te
 
 ## ✨ Key Features
 
-### 🔐 1. Data Encryption
-- AES-GCM-based encryption for data confidentiality and integrity.
-- Elliptic Curve Cryptography (ECC) for cryptographic key-related operations.
-
-### 👥 2. Authentication and Access Control
+### 🔐 1. Authentication and Access Control
 - User registration and login.
-- Role-based access to application features.
-- User management functionality.
+- Role-based dashboard routing.
+- Patient dashboard access is currently available in the deployed application.
+- Access for other roles requires further implementation or troubleshooting.
 
-### 🩺 3. Healthcare Record Management
-- Patient information management.
-- Appointment management.
-- Prescription management.
-- Laboratory information management.
+### 🩺 2. Patient Dashboard
+- Patient-oriented dashboard interface.
+- Access to patient-related healthcare features supported by the current implementation.
+
+### 🔒 3. Healthcare Security
+- AES-GCM encryption functionality.
+- ECC-based cryptographic operations.
+- Security-related modules for protecting healthcare information.
 
 ### 🤖 4. AI-Based Security
-- Integration of machine-learning-based security analysis.
-- Random Forest (RF), Isolation Forest (IF), and Support Vector Machine (SVM) techniques for relevant security-analysis tasks, depending on the implemented workflow.
+- Machine-learning-based security analysis.
+- Random Forest, Isolation Forest, and SVM techniques where implemented.
 
-### 📋 5. Audit Logging
-- Record relevant application activities.
-- Support security monitoring and accountability.
+### 📋 5. Audit and Notifications
+- Audit logging functionality.
+- Notification-related modules.
 
-### 🔔 6. Notifications
-- Application notification functionality for supported workflows.
+## 🏗️ Project Modules
 
-### 📚 7. API Documentation
-- REST API endpoints.
-- API schema and interactive documentation using Django REST Framework and drf-spectacular.
+The project contains the following Django applications:
+
+- **Accounts:** User registration, login, profiles, and role-based routing.
+- **Patients:** Patient information management.
+- **Appointments:** Appointment management.
+- **Prescriptions:** Prescription-related operations.
+- **Laboratory:** Laboratory information management.
+- **Security:** Security-related operations.
+- **AI Security:** AI/ML-based security analysis.
+- **Audit:** Application activity logging.
+- **Notifications:** Notification-related functionality.
+
+The presence of a module does not necessarily mean that every feature is currently accessible through the deployed user interface.
+
+## ⚠️ Current Limitations
+
+- The deployed application currently provides dashboard access for the Patient role.
+- Dashboard access for other roles, such as doctors, laboratory technicians, and administrators, needs to be verified and completed where necessary.
+- Role-specific permissions and navigation require testing for each account type.
+- Further testing is needed before considering the application production-ready.
+
+## 🛣️ Future Enhancements
+
+- Enable and verify dashboards for all intended user roles.
+- Implement and test role-specific access permissions.
+- Complete doctor, laboratory technician, and administrator workflows.
+- Improve security monitoring and anomaly detection.
+- Strengthen authorization checks for sensitive healthcare records.
+- Perform end-to-end testing of registration, login, dashboards, and protected routes.
+
 
 ## 🛠️ Technologies Used
 
