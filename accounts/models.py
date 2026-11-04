@@ -28,12 +28,21 @@ class UserManager(BaseUserManager):
         return self.create_user(email, password, **extra_fields)
 
 
+class ApprovalStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    APPROVED = "approved", "Approved"
+    REJECTED = "rejected", "Rejected"
+
+
 class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=100, blank=True)
     last_name = models.CharField(max_length=100, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.PATIENT)
+    approval_status = models.CharField(max_length=20, choices=ApprovalStatus.choices, default=ApprovalStatus.APPROVED)
+    approved_by = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_users")
+    approved_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
@@ -58,10 +67,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.role == Role.PATIENT
 
     def is_doctor(self):
-        return self.role == Role.DOCTOR
+        return self.role == Role.DOCTOR and self.is_active and self.approval_status == ApprovalStatus.APPROVED
 
     def is_lab_tech(self):
-        return self.role == Role.LAB_TECH
+        return self.role == Role.LAB_TECH and self.is_active and self.approval_status == ApprovalStatus.APPROVED
 
     def is_administrator(self):
         return self.role == Role.ADMIN or self.is_superuser
@@ -86,10 +95,27 @@ class PatientProfile(models.Model):
         return f"PatientProfile({self.user.email})"
 
 
+class Specialization(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class DoctorProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="doctor_profile")
     license_number = models.CharField(max_length=50, blank=True)
-    specialization = models.CharField(max_length=100, blank=True)
+    specialization = models.ForeignKey(Specialization, on_delete=models.SET_NULL, null=True, blank=True, related_name="doctors")
+    specialization_text = models.CharField(max_length=100, blank=True)
+    years_experience = models.PositiveIntegerField(default=0)
+    qualifications = models.CharField(max_length=255, blank=True)
+    availability = models.CharField(max_length=255, blank=True)
     department = models.CharField(max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

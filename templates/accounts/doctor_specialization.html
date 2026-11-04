@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Doctor Specialization{% endblock %}
+{% block content %}
+<h2>Doctor Specialization and Profile</h2>
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label>Specialization</label>
+      <select name="specialization">
+        <option value="">-- select --</option>
+        {% for s in specialties %}
+        <option value="{{ s.id }}" {% if profile.specialization_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group"><label>Additional specialization text</label><input name="specialization_text" value="{{ profile.specialization_text }}"></div>
+    <div class="form-group"><label>Qualifications</label><input name="qualifications" value="{{ profile.qualifications }}"></div>
+    <div class="form-group"><label>Years of experience</label><input name="years_experience" type="number" value="{{ profile.years_experience }}"></div>
+    <div class="form-group"><label>Availability</label><input name="availability" value="{{ profile.availability }}"></div>
+    <button class="btn" type="submit">Save</button>
+  </form>
+</div>
+{% endblock %}

@@ -91,6 +91,9 @@ def create_prescription(user, patient, title, payload, items=None, request=None,
         prescription.save(update_fields=["signature", "signed_by", "signed_at", "status"])
 
     create_audit_event("prescription.create", actor=user, target_type="Prescription", target_id=prescription.id, request=request, result="success", details={"signed": sign})
+    from audit.services import notify_user
+
+    notify_user(prescription.patient.user, "New prescription", f"A prescription titled {prescription.title} has been issued.", category="prescription", url="/prescriptions/")
     return prescription, payload
 
 

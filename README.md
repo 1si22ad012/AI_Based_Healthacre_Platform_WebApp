@@ -230,3 +230,17 @@ GitHub: [1si22ad012](https://github.com/1si22ad012)
 ## 📄 License
 
 Add a license file if you intend to distribute or reuse this project publicly. Until then, no open-source license is specified.
+
+## New AI Healthcare Features
+- Doctor specialization management: /accounts/doctor-specialization/
+- Doctor search: /healthcare/doctor-search/
+- Symptom assessment: /healthcare/symptom-assessment/
+- AI chatbot: /healthcare/chatbot/
+- Security risk scoring: /healthcare/risk-analysis/
+- Security incident management: /healthcare/security-incidents/
+- Optional face verification prototype: /healthcare/face-verification/
+
+### Seed Specializations
+`powershell
+python manage.py seed_specializations
+`

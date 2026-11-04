@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Symptom Assessment{% endblock %}
+{% block content %}
+<h2>AI Symptom Assessment</h2>
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <textarea name="symptoms" rows="4" placeholder="Describe your symptoms"></textarea>
+    <button class="btn" type="submit">Assess</button>
+  </form>
+  <p class="empty">This is preliminary navigation, not a diagnosis. Emergency symptoms require immediate medical care.</p>
+</div>
+{% if result %}
+<div class="card">
+  <h3>Result</h3>
+  <p><strong>Suggested specialties:</strong> {{ result.assessment.predicted_specialties|join:", " }}</p>
+  <p><strong>Emergency warning:</strong> {{ result.assessment.emergency }}</p>
+  <p>{{ result.assessment.explanation }}</p>
+</div>
+{% endif %}
+{% if recommended_doctors %}
+<div class="card">
+  <h3>Recommended Doctors</h3>
+  <table>
+    <tr><th>Doctor</th><th>Specialization</th><th>Availability</th></tr>
+    {% for d in recommended_doctors %}
+    <tr><td>{{ d.user.full_name }}</td><td>{{ d.specialization.name }}</td><td>{{ d.availability }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

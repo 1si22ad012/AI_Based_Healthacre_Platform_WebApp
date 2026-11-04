@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Incident Summary{% endblock %}
+{% block content %}
+<h2>Security Incident Summary</h2>
+<div class="card">
+  <p><strong>Title:</strong> {{ incident.title }}</p>
+  <p><strong>Severity:</strong> {{ incident.severity }}</p>
+  <p><strong>Status:</strong> {{ incident.status }}</p>
+  <p>{{ summary }}</p>
+  <table>
+    <tr><th>Time</th><th>Event</th><th>Actor</th><th>Severity</th><th>Risk</th></tr>
+    {% for event in events %}
+    <tr>
+      <td>{{ event.created_at }}</td>
+      <td>{{ event.event_type }}</td>
+      <td>{{ event.actor|default:"-" }}</td>
+      <td>{{ event.severity }}</td>
+      <td>{{ event.risk_score }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" class="empty">No linked events</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

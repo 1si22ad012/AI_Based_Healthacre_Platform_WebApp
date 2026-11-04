@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}AI Chatbot{% endblock %}
+{% block content %}
+<h2>AI Healthcare Assistant</h2>
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <textarea name="message" rows="3" placeholder="Ask a general healthcare question"></textarea>
+    <button class="btn" type="submit">Send</button>
+  </form>
+  <p class="empty">This assistant provides general information only and does not diagnose or prescribe.</p>
+</div>
+<div class="card">
+  <h3>Recent Conversation</h3>
+  {% for c in conversations %}
+  <p><strong>You:</strong> {{ c.message }}</p>
+  <p><strong>Assistant:</strong> {{ c.response }}</p>
+  <hr>
+  {% empty %}
+  <p class="empty">No conversation yet.</p>
+  {% endfor %}
+</div>
+{% endblock %}

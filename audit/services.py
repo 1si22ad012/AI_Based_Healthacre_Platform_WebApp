@@ -50,6 +50,23 @@ def create_security_event(
         from .realtime import broadcast_admin_alert
 
         broadcast_admin_alert({"event_type": event_type, "severity": severity, "risk_score": risk_score, "actor": getattr(actor, "email", None), "created_at": event.created_at.isoformat()})
+        try:
+            from accounts.models import User
+            from notifications.models import Notification
+
+            for admin_user in User.objects.filter(role="admin") | User.objects.filter(is_superuser=True):
+                Notification.objects.create(
+                    recipient=admin_user,
+                    title="Security event requires review",
+                    message=f"{event_type} with {severity} severity was recorded.",
+                    category="security",
+                    url="/ai/monitoring/",
+                )
+            from healthcare_ai.services import create_incident_for_security_event
+
+            create_incident_for_security_event(event)
+        except Exception:
+            pass
     return event
 
 

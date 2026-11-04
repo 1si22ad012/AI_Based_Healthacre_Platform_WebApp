@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
+from accounts.permissions import is_admin
 from audit.models import AnomalyAlert, SecurityEvent
 from audit.services import create_audit_event
 from .services import detect_anomaly
@@ -9,6 +10,8 @@ from .services import detect_anomaly
 
 @login_required
 def security_monitoring_view(request):
+    if not is_admin(request.user):
+        return render(request, "errors/403.html", status=403)
     events = SecurityEvent.objects.all().order_by("-created_at")[:100]
     alerts = AnomalyAlert.objects.all().order_by("-created_at")[:50]
     return render(request, "ai/security_monitoring.html", {"events": events, "alerts": alerts})
@@ -16,6 +19,8 @@ def security_monitoring_view(request):
 
 @login_required
 def anomaly_alerts_view(request):
+    if not is_admin(request.user):
+        return render(request, "errors/403.html", status=403)
     alerts = AnomalyAlert.objects.all().order_by("-created_at")
     if request.method == "POST":
         alert_id = request.POST.get("alert_id")
@@ -60,6 +65,8 @@ def detect_demo_view(request):
         if result["is_anomaly"]:
             from audit.models import AnomalyAlert
             alert = AnomalyAlert.objects.create(security_event=event, detector="hybrid", score=result["score"], threshold=result["threshold"], status="open")
+            from healthcare_ai.models import SecurityIncident
+            SecurityIncident.objects.create(title="Anomaly detected", severity="high", summary=f"Hybrid anomaly detector score {result['score']} exceeded threshold {result['threshold']}.", related_events=[event.id])
             from audit.realtime import broadcast_admin_alert
             broadcast_admin_alert({"type": "anomaly_alert", "alert_id": alert.id, "score": alert.score, "status": alert.status})
             messages.warning(request, "Anomaly detected and alert created.")

@@ -31,6 +31,11 @@ def create_appointment(user, patient, scheduled_at, reason="", notes="", doctor=
         appointment.key_version = key_version
     appointment.save()
     create_audit_event("appointment.create", actor=user, target_type="Appointment", target_id=appointment.id, request=request, result="success")
+    from audit.services import notify_user
+
+    notify_user(appointment.patient.user, "Appointment scheduled", f"An appointment has been scheduled for {appointment.scheduled_at}.", category="appointment", url="/appointments/")
+    if appointment.doctor and appointment.doctor != user:
+        notify_user(appointment.doctor, "New appointment request", f"A new appointment was requested for {appointment.scheduled_at}.", category="appointment", url="/appointments/")
     return appointment
 
 

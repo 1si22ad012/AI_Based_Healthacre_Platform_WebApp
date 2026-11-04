@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Face Verification{% endblock %}
+{% block content %}
+<h2>Optional Face Verification Prototype</h2>
+<div class="card">
+  <p>This is an optional prototype. Password login remains available. No raw facial image is stored by this prototype.</p>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label><input type="checkbox" name="consent" {% if record.consent_given %}checked{% endif %}> I consent to face verification enrollment.</label>
+    </div>
+    <div class="form-group">
+      <label>Client-side template hash (optional prototype value)</label>
+      <input name="template_hash" value="{{ record.template_hash }}">
+    </div>
+    <button class="btn" type="submit">Enroll / Update Consent</button>
+  </form>
+  <form method="post" style="margin-top:12px;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="remove">
+    <button class="btn btn-danger" type="submit">Remove Enrollment</button>
+  </form>
+  <p class="empty">Status: {% if record.enrolled %}Enrolled{% else %}Not enrolled{% endif %}</p>
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Doctor Search{% endblock %}
+{% block content %}
+<h2>Doctor Search by Specialization</h2>
+<form method="get" class="card">
+  <input name="q" value="{{ query }}" placeholder="Search doctor or specialty">
+  <select name="specialty">
+    <option value="">All specialties</option>
+    {% for s in specialties %}
+    <option value="{{ s.id }}" {% if specialty_id == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn" type="submit">Search</button>
+</form>
+<div class="card">
+  <table>
+    <tr><th>Doctor</th><th>Specialization</th><th>Experience</th><th>Availability</th></tr>
+    {% for d in doctors %}
+    <tr>
+      <td>{{ d.user.full_name }}</td>
+      <td>{{ d.specialization.name|default:d.specialization_text }}</td>
+      <td>{{ d.years_experience }}</td>
+      <td>{{ d.availability }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4" class="empty">No doctors found</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

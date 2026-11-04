@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Risk Analysis{% endblock %}
+{% block content %}
+<h2>Security Risk Scoring</h2>
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group"><label>Failed logins</label><input name="failed_logins" type="number" value="0"></div>
+    <div class="form-group"><label>Denied requests</label><input name="denied_requests" type="number" value="0"></div>
+    <div class="form-group"><label>Invalid tags</label><input name="invalid_tags" type="number" value="0"></div>
+    <label><input type="checkbox" name="unusual_hour"> Unusual hour</label><br>
+    <label><input type="checkbox" name="anomaly"> Anomaly detected</label><br><br>
+    <button class="btn" type="submit">Calculate Risk</button>
+  </form>
+</div>
+{% if result %}
+<div class="card">
+  <h3>Result</h3>
+  <p><strong>Score:</strong> {{ result.risk.score }}/100</p>
+  <p><strong>Level:</strong> {{ result.risk.level }}</p>
+  <p><strong>Reasons:</strong></p>
+  <ul>{% for reason in result.explanation %}<li>{{ reason }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% endblock %}

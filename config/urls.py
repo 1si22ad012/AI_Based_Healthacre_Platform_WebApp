@@ -11,6 +11,7 @@ def healthz(request):
     return HttpResponse("ok", content_type="text/plain")
 
 urlpatterns = [
+    path("health/", healthz, name="health"),
     path("healthz/", healthz, name="healthz"),
     path("admin/", admin.site.urls),
     path("", include("accounts.urls")),
@@ -22,6 +23,7 @@ urlpatterns = [
     path("ai/", include("ai_security.urls")),
     path("audit/", include("audit.urls")),
     path("notifications/", include("notifications.urls")),
+    path("healthcare/", include("healthcare_ai.urls")),
     path("api/", include("config.api_urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

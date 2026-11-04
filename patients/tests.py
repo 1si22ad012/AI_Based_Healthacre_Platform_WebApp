@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.test import TestCase, Client
+from django.urls import reverse
 
 from accounts.models import User, PatientProfile, DoctorProfile
 from patients.models import MedicalRecord
@@ -44,6 +45,56 @@ class PatientRecordTests(TestCase):
         record.save()
         with self.assertRaises(Exception):
             decrypt_medical_record(self.doctor_user, record)
+
+
+class PatientRecordsViewTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.patient_profile, self.patient_user = make_patient("viewpatient@test.com")
+        self.doctor_profile, self.doctor_user = make_doctor("viewdoctor@test.com")
+        from appointments.models import Appointment
+        from django.utils import timezone
+
+        Appointment.objects.get_or_create(patient=self.patient_profile, doctor=self.doctor_user, scheduled_at=timezone.now(), defaults={"status": "scheduled"})
+        self.admin_user = User.objects.create_superuser(email="viewadmin@test.com", password="TestPass123!Secure", first_name="View", last_name="Admin")
+        self.lab_user = User.objects.create_user(email="viewlab@test.com", password="TestPass123!Secure", first_name="View", last_name="Lab", role="lab_tech")
+
+    def test_patient_can_open_records_page(self):
+        self.client.login(email=self.patient_user.email, password="TestPass123!Secure")
+        response = self.client.get(reverse("patients:records"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_doctor_can_open_records_page(self):
+        self.client.login(email=self.doctor_user.email, password="TestPass123!Secure")
+        response = self.client.get(reverse("patients:records"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_admin_can_open_records_page(self):
+        self.client.login(email=self.admin_user.email, password="TestPass123!Secure")
+        response = self.client.get(reverse("patients:records"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_lab_tech_can_open_records_page(self):
+        self.client.login(email=self.lab_user.email, password="TestPass123!Secure")
+        response = self.client.get(reverse("patients:records"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_anonymous_user_is_redirected(self):
+        response = self.client.get(reverse("patients:records"))
+        self.assertEqual(response.status_code, 302)
+
+    def test_patient_cannot_view_another_patients_selected_record(self):
+        other_profile, other_user = make_patient("otherpatient@test.com")
+        record, _ = encrypt_medical_record(self.doctor_user, self.patient_profile, "Note", "Secret", "high")
+        self.client.login(email=other_user.email, password="TestPass123!Secure")
+        response = self.client.get(reverse("patients:records"), {"patient": self.patient_profile.id})
+        self.assertEqual(response.status_code, 403)
+
+    def test_patient_missing_profile_can_open_records_page(self):
+        user = User.objects.create_user(email="missingpatient@test.com", password="TestPass123!Secure", first_name="Missing", last_name="Patient", role="patient")
+        self.client.login(email=user.email, password="TestPass123!Secure")
+        response = self.client.get(reverse("patients:records"))
+        self.assertEqual(response.status_code, 200)
 
     def test_authorized_doctor_creates_record(self):
         record, policy = encrypt_medical_record(self.doctor_user, self.patient_profile, "Note", "Secret", "high")

@@ -14,7 +14,8 @@ from .services import create_diagnosis, decrypt_medical_record, encrypt_medical_
 def patient_records_view(request):
     user = request.user
     if user.is_patient():
-        patients = [user.patient_profile]
+        pp, _ = PatientProfile.objects.get_or_create(user=user)
+        patients = [pp]
     elif user.is_doctor() or user.is_administrator():
         # Doctors see patients they are authorized for; admins operational list limited.
         patients = PatientProfile.objects.all()[:50]
@@ -35,6 +36,8 @@ def patient_records_view(request):
 @login_required
 def create_record_view(request):
     user = request.user
+    if not (user.is_doctor() or user.is_administrator()):
+        return render(request, "errors/403.html", status=403)
     if request.method == "POST":
         form = MedicalRecordForm(request.POST)
         if form.is_valid():
@@ -50,7 +53,11 @@ def create_record_view(request):
                 messages.error(request, str(exc))
     else:
         form = MedicalRecordForm()
-    patients = PatientProfile.objects.all() if user.is_doctor() or user.is_administrator() else [user.patient_profile]
+    if user.is_doctor() or user.is_administrator():
+        patients = PatientProfile.objects.all()
+    else:
+        pp, _ = PatientProfile.objects.get_or_create(user=user)
+        patients = [pp]
     return render(request, "patients/create_record.html", {"form": form, "patients": patients})
 
 

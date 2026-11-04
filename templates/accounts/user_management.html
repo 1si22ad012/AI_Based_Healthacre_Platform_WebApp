@@ -2,6 +2,31 @@
 {% block title %}User Management{% endblock %}
 {% block content %}
 <div class="card">
+  <h2>Pending Professional Registrations</h2>
+  <table>
+    <tr><th>Email</th><th>Role</th><th>Registered</th><th>Actions</th></tr>
+    {% for u in pending_professionals %}
+    <tr>
+      <td>{{ u.email }}</td>
+      <td>{{ u.role }}</td>
+      <td>{{ u.date_joined }}</td>
+      <td>
+        <form method="post" action="{% url 'accounts:approve_user' u.id %}" style="display:inline;">
+          {% csrf_token %}
+          <button class="btn" type="submit">Approve</button>
+        </form>
+        <form method="post" action="{% url 'accounts:reject_user' u.id %}" style="display:inline;">
+          {% csrf_token %}
+          <button class="btn btn-danger" type="submit">Reject</button>
+        </form>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4" class="empty">No pending professional registrations</td></tr>
+    {% endfor %}
+  </table>
+</div>
+<div class="card">
   <h2>User Management</h2>
   <form method="post" class="grid grid-2">
     {% csrf_token %}

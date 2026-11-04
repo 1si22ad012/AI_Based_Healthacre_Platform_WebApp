@@ -72,5 +72,8 @@ def update_status_view(request, appointment_id):
         if status_value in dict(AppointmentStatus.choices):
             appointment.status = status_value
             appointment.save(update_fields=["status", "updated_at"])
+            from audit.services import notify_user
+
+            notify_user(appointment.patient.user, "Appointment updated", f"Your appointment status is now {status_value}.", category="appointment", url="/appointments/")
             messages.success(request, "Appointment status updated.")
     return redirect("appointments:list")

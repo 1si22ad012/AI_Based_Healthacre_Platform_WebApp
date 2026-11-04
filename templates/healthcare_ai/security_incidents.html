@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Security Incidents{% endblock %}
+{% block content %}
+<h2>Security Incident Management</h2>
+<div class="card">
+  <table>
+    <tr><th>Title</th><th>Severity</th><th>Status</th><th>Summary</th><th>Actions</th></tr>
+    {% for incident in incidents %}
+    <tr>
+      <td>{{ incident.title }}</td>
+      <td>{{ incident.severity }}</td>
+      <td>{{ incident.status }}</td>
+      <td>{{ incident.summary }} <a href="{% url 'healthcare_ai:incident_summary' incident.id %}">View events</a></td>
+      <td>
+        <form method="post" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="incident_id" value="{{ incident.id }}">
+          <button class="btn btn-secondary" name="action" value="acknowledge" type="submit">Acknowledge</button>
+          <button class="btn btn-secondary" name="action" value="investigate" type="submit">Investigate</button>
+          <button class="btn" name="action" value="resolve" type="submit">Resolve</button>
+          <button class="btn btn-danger" name="action" value="false_positive" type="submit">False Positive</button>
+        </form>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" class="empty">No incidents</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

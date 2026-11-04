@@ -1,15 +1,20 @@
 from django.contrib import messages
+from django.core.mail import send_mail
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
+from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
 
 
 from audit.services import create_audit_event, create_security_event
+from django.utils import timezone
+from healthcare_ai.services import calculate_risk_score, explain_risk
+from healthcare_ai.models import LoginAudit
 from .forms import AdminUserForm, ProfileForm, RegistrationForm
-from .models import PatientProfile, Role, User
+from .models import ApprovalStatus, DoctorProfile, PatientProfile, Role, Specialization, User
 from .permissions import is_admin
 
 
@@ -25,12 +30,51 @@ def login_view(request):
     if request.method == "POST":
         email = request.POST.get("email", "").strip().lower()
         password = request.POST.get("password", "")
+        candidate = User.objects.filter(email=email).first()
+        if candidate and not candidate.is_active and candidate.check_password(password):
+            if candidate.approval_status == ApprovalStatus.PENDING:
+                messages.error(request, "Your account is pending administrator approval.")
+            else:
+                messages.error(request, "Your account is inactive.")
+            return render(request, "accounts/login.html")
         user = authenticate(request, username=email, password=password)
         if user is not None and user.is_active:
             login(request, user)
             cache.delete(cache_key)
-            create_security_event("login_success", actor=user, request=request, severity="info")
-            create_audit_event("auth.login", actor=user, request=request, result="success")
+            user_agent = request.META.get("HTTP_USER_AGENT", "")[:500]
+            risk = calculate_risk_score({
+                "failed_logins": user.failed_login_count,
+                "unusual_hour": timezone.now().hour < 6 or timezone.now().hour > 22,
+            })
+            login_audit = LoginAudit.objects.create(
+                user=user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+                user_agent=user_agent,
+                risk_score=risk["score"],
+                risk_level=risk["level"],
+            )
+            try:
+                send_mail(
+                    subject="New login to your healthcare account",
+                    message=(
+                        f"Hello {user.full_name},\n\n"
+                        f"A login was recorded at {login_audit.login_at}.\n"
+                        f"IP address: {login_audit.ip_address or 'unknown'}\n"
+                        f"Device/browser: {user_agent or 'unknown'}\n\n"
+                        "If this was not you, report it immediately and change your password.\n"
+                    ),
+                    from_email=None,
+                    recipient_list=[user.email],
+                    fail_silently=True,
+                )
+                login_audit.email_sent = True
+                login_audit.save(update_fields=["email_sent"])
+            except Exception:
+                pass
+            create_security_event("login_success", actor=user, request=request, severity="info", risk_score=risk["score"])
+            create_audit_event("auth.login", actor=user, request=request, result="success", details={"risk_level": risk["level"], "reasons": risk["reasons"]})
+            if risk["score"] >= 60:
+                create_security_event("anomaly", actor=user, request=request, metadata={"reason": "suspicious_login", "risk": risk}, severity="high", risk_score=risk["score"])
             messages.success(request, "Welcome back.")
             return redirect("accounts:dashboard")
         cache.set(cache_key, attempts + 1, timeout=900)
@@ -55,11 +99,19 @@ def register_view(request):
         form = RegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            login(request, user)
-            create_security_event("login_success", actor=user, request=request, metadata={"registration": True})
-            create_audit_event("auth.register", actor=user, request=request, result="success", details={"role": user.role})
-            messages.success(request, "Account created successfully.")
-            return redirect("accounts:dashboard")
+            create_audit_event("auth.register", actor=user, request=request, result="success", details={"role": user.role, "approval_status": user.approval_status})
+            if user.approval_status == ApprovalStatus.APPROVED:
+                login(request, user)
+                create_security_event("login_success", actor=user, request=request, metadata={"registration": True})
+                messages.success(request, "Account created successfully.")
+                return redirect("accounts:dashboard")
+            messages.success(request, "Registration submitted. Your professional account is pending administrator approval.")
+            from audit.services import notify_user
+            from .models import User
+
+            for admin_user in User.objects.filter(role=Role.ADMIN) | User.objects.filter(is_superuser=True):
+                notify_user(admin_user, "New professional registration", f"{user.email} registered as {user.role} and requires approval.", category="admin", url="/users/")
+            return redirect("accounts:login")
     else:
         form = RegistrationForm()
     return render(request, "accounts/register.html", {"form": form})
@@ -213,7 +265,75 @@ def user_management_view(request):
     else:
         form = AdminUserForm()
     users = User.objects.all().order_by("-date_joined")
-    return render(request, "accounts/user_management.html", {"users": users, "form": form})
+    pending_professionals = User.objects.filter(role__in=[Role.DOCTOR, Role.LAB_TECH], approval_status=ApprovalStatus.PENDING).order_by("-date_joined")
+    return render(request, "accounts/user_management.html", {"users": users, "form": form, "pending_professionals": pending_professionals})
+
+
+@login_required
+@require_http_methods(["POST"])
+def approve_user_view(request, user_id):
+    if not is_admin(request.user):
+        return render(request, "errors/403.html", status=403)
+    target = get_object_or_404(User, id=user_id)
+    if target.role not in {Role.DOCTOR, Role.LAB_TECH}:
+        messages.error(request, "Only professional registrations can be approved.")
+        return redirect("accounts:user_management")
+    target.is_active = True
+    target.approval_status = ApprovalStatus.APPROVED
+    target.approved_by = request.user
+    target.approved_at = timezone.now()
+    target.save(update_fields=["is_active", "approval_status", "approved_by", "approved_at"])
+    from .models import DoctorProfile, LabTechProfile, PatientProfile
+
+    if target.role == Role.DOCTOR:
+        DoctorProfile.objects.get_or_create(user=target)
+    elif target.role == Role.LAB_TECH:
+        LabTechProfile.objects.get_or_create(user=target)
+    create_audit_event("admin.approve_user", actor=request.user, target_type="User", target_id=target.id, request=request, result="success", details={"role": target.role})
+    from audit.services import notify_user
+
+    notify_user(target, "Account approved", "Your professional account has been approved. You can now log in.", category="account", url="/login/")
+    messages.success(request, f"Approved {target.email}.")
+    return redirect("accounts:user_management")
+
+
+@login_required
+@require_http_methods(["POST"])
+def reject_user_view(request, user_id):
+    if not is_admin(request.user):
+        return render(request, "errors/403.html", status=403)
+    target = get_object_or_404(User, id=user_id)
+    if target.role not in {Role.DOCTOR, Role.LAB_TECH}:
+        messages.error(request, "Only professional registrations can be rejected.")
+        return redirect("accounts:user_management")
+    target.is_active = False
+    target.approval_status = ApprovalStatus.REJECTED
+    target.approved_by = request.user
+    target.approved_at = timezone.now()
+    target.save(update_fields=["is_active", "approval_status", "approved_by", "approved_at"])
+    create_audit_event("admin.reject_user", actor=request.user, target_type="User", target_id=target.id, request=request, result="success", details={"role": target.role})
+    messages.success(request, f"Rejected {target.email}.")
+    return redirect("accounts:user_management")
+
+
+@login_required
+def doctor_specialization_view(request):
+    if not request.user.is_doctor():
+        return render(request, "errors/403.html", status=403)
+    profile, _ = DoctorProfile.objects.get_or_create(user=request.user)
+    if request.method == "POST":
+        specialization_id = request.POST.get("specialization")
+        specialization = Specialization.objects.filter(id=specialization_id, is_active=True).first()
+        profile.specialization = specialization
+        profile.specialization_text = request.POST.get("specialization_text", "").strip()
+        profile.qualifications = request.POST.get("qualifications", "").strip()
+        profile.years_experience = int(request.POST.get("years_experience") or 0)
+        profile.availability = request.POST.get("availability", "").strip()
+        profile.save()
+        messages.success(request, "Doctor profile updated.")
+        return redirect("accounts:doctor_specialization")
+    specialties = Specialization.objects.filter(is_active=True).order_by("name")
+    return render(request, "accounts/doctor_specialization.html", {"profile": profile, "specialties": specialties})
 
 
 @login_required
