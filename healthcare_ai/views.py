@@ -6,8 +6,11 @@ from django.utils import timezone
 
 from accounts.models import DoctorProfile, Specialization
 from accounts.permissions import is_admin as is_administrator
+import json
+
 from .models import AIConversation, FaceVerificationRecord, SecurityIncident, SymptomAssessment
 from .services import analyze_symptoms, calculate_risk_score, chatbot_response, explain_risk, incident_events, recommend_doctors, summarize_incident
+from .voice import resolve_voice_command
 
 
 @login_required
@@ -108,6 +111,19 @@ def face_verification_view(request):
             messages.success(request, "Face verification enrollment removed.")
         return redirect("healthcare_ai:face_verification")
     return render(request, "healthcare_ai/face_verification.html", {"record": record})
+
+
+@login_required
+def voice_command_view(request):
+    if request.method != "POST":
+        return JsonResponse({"action": "none", "message": "Voice command endpoint."}, status=405)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = {}
+    transcript = payload.get("transcript", request.POST.get("transcript", ""))
+    result = resolve_voice_command(transcript, getattr(request.user, "role", ""))
+    return JsonResponse(result)
 
 
 @login_required

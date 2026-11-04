@@ -57,6 +57,45 @@ th { background: #f9fafb; }
   .sidebar { display: none; }
   .grid-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
+.voice-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: min(360px, calc(100vw - 40px));
+  z-index: 999;
+}
+.voice-panel .voice-body {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  margin-top: 8px;
+}
+.voice-panel .voice-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 10px 0;
+}
+.voice-panel .voice-text-form {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+}
+.voice-status[data-state="listening"] {
+  color: var(--primary);
+  font-weight: 700;
+}
+.voice-status[data-state="error"] {
+  color: var(--danger);
+}
 @media (max-width: 600px) {
   .grid-4, .grid-2 { grid-template-columns: 1fr; }
+  .voice-panel {
+    right: 10px;
+    bottom: 10px;
+    width: calc(100vw - 20px);
+  }
 }

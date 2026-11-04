@@ -12,4 +12,5 @@ urlpatterns = [
     path("face-verification/", views.face_verification_view, name="face_verification"),
     path("risk-analysis/", views.risk_analysis_view, name="risk_analysis"),
     path("incident-summary/<int:incident_id>/", views.incident_summary_view, name="incident_summary"),
+    path("voice-command/", views.voice_command_view, name="voice_command"),
 ]
