@@ -4,11 +4,12 @@ from ai_security.training import train_anomaly_models, train_policy_model
 
 
 class Command(BaseCommand):
-    help = "Train and persist AI security models using synthetic, non-patient data."
+    help = "Train and persist AI security models using synthetic or configured non-patient data."
 
     def handle(self, *args, **options):
-        policy_path = train_policy_model()
-        anomaly_paths = train_anomaly_models()
-        self.stdout.write(self.style.SUCCESS(f"Policy model saved: {policy_path}"))
-        for name, path in anomaly_paths.items():
-            self.stdout.write(self.style.SUCCESS(f"{name} saved: {path}"))
+        policy = train_policy_model()
+        anomaly = train_anomaly_models()
+        self.stdout.write(self.style.SUCCESS(f"Policy model saved: {policy['model']}"))
+        self.stdout.write(self.style.SUCCESS(f"Policy metrics: {policy['metrics']}"))
+        self.stdout.write(self.style.SUCCESS(f"Anomaly version: {anomaly['version']} dataset: {anomaly['dataset']}"))
+        self.stdout.write(self.style.SUCCESS(f"Anomaly metrics: {anomaly['metrics']}"))

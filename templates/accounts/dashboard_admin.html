@@ -1,7 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Administrator Dashboard{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
 {% block content %}
 <h2>Administrator Dashboard</h2>
+
+<form method="get" class="card">
+  <label>Time range (days): <input type="number" name="days" value="{{ days }}" min="1" max="365"></label>
+  <button class="btn" type="submit">Apply</button>
+</form>
+
 <div class="grid grid-4">
   <div class="card stat"><div class="value">{{ total_users }}</div><div class="label">Total Users</div></div>
   <div class="card stat"><div class="value">{{ active_users }}</div><div class="label">Active Accounts</div></div>
@@ -9,11 +18,64 @@
   <div class="card stat"><div class="value">{{ appointments_total }}</div><div class="label">Appointments</div></div>
 </div>
 <div class="grid grid-4">
+  <div class="card stat"><div class="value">{{ analytics.stats.total_security_events }}</div><div class="label">Security Events</div></div>
+  <div class="card stat"><div class="value">{{ analytics.stats.total_anomaly_detections }}</div><div class="label">Anomaly Detections</div></div>
+  <div class="card stat"><div class="value">{{ analytics.stats.anomalous_activities }}</div><div class="label">Anomalous Activities</div></div>
+  <div class="card stat"><div class="value">{{ analytics.stats.normal_activities }}</div><div class="label">Normal Activities</div></div>
+</div>
+<div class="grid grid-4">
+  <div class="card stat"><div class="value">{{ analytics.stats.open_incidents }}</div><div class="label">Open Incidents</div></div>
+  <div class="card stat"><div class="value">{{ analytics.stats.critical_incidents }}</div><div class="label">Critical Incidents</div></div>
+  <div class="card stat"><div class="value">{{ analytics.stats.high_risk_accounts_count }}</div><div class="label">High-Risk Accounts</div></div>
+  <div class="card stat"><div class="value">{{ analytics.stats.average_risk_score }}</div><div class="label">Avg Risk Score</div></div>
+</div>
+<div class="grid grid-4">
+  <div class="card stat"><div class="value">{{ analytics.stats.active_keys }}</div><div class="label">Active Keys</div></div>
+  <div class="card stat"><div class="value">{{ analytics.stats.failed_encryption_operations }}</div><div class="label">Failed Encryption Ops</div></div>
   <div class="card stat"><div class="value">{{ pending_labs }}</div><div class="label">Pending Lab Requests</div></div>
-  <div class="card stat"><div class="value">{{ recent_security_events }}</div><div class="label">Security Events</div></div>
-  <div class="card stat"><div class="value">{{ open_alerts }}</div><div class="label">Open Anomaly Alerts</div></div>
   <div class="card stat"><div class="value">{{ encryption_ops }}</div><div class="label">Encryption Operations</div></div>
 </div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Anomaly Trend</h3>
+    <canvas id="anomalyTrendChart"></canvas>
+  </div>
+  <div class="card">
+    <h3>Normal vs Anomalous</h3>
+    <canvas id="normalAnomalyChart"></canvas>
+  </div>
+</div>
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Security Events by Type</h3>
+    <canvas id="eventsByTypeChart"></canvas>
+  </div>
+  <div class="card">
+    <h3>Risk Distribution</h3>
+    <canvas id="riskDistChart"></canvas>
+  </div>
+</div>
+
+<div class="card">
+  <h3>High-Risk Accounts</h3>
+  <table>
+    <tr><th>User</th><th>Risk</th><th>Level</th><th>Events</th><th>Anomalies</th><th>Factors</th></tr>
+    {% for a in analytics.high_risk_accounts %}
+    <tr>
+      <td>{{ a.user.email }}</td>
+      <td>{{ a.risk.score }}</td>
+      <td>{{ a.risk.level }}</td>
+      <td>{{ a.event_count }}</td>
+      <td>{{ a.anomaly_count }}</td>
+      <td>{{ a.factors|join:", " }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="empty">No high-risk accounts</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
 <div class="grid grid-2">
   <div class="card">
     <h3>Users by Role</h3>
@@ -38,6 +100,7 @@
     </table>
   </div>
 </div>
+
 <div class="card">
   <h3>Recent Security Events</h3>
   <table>
@@ -49,20 +112,61 @@
     {% endfor %}
   </table>
 </div>
-<div class="card">
-  <h3>Recent Audit Events</h3>
-  <table>
-    <tr><th>Time</th><th>Action</th><th>Result</th></tr>
-    {% for event in recent_audit %}
-    <tr><td>{{ event.created_at }}</td><td>{{ event.action }}</td><td>{{ event.result }}</td></tr>
-    {% empty %}
-    <tr><td colspan="3" class="empty">No audit events</td></tr>
-    {% endfor %}
-  </table>
-</div>
+
 <div class="card">
   <h3>Security Operations</h3>
   <a class="btn" href="{% url 'healthcare_ai:security_incidents' %}">Manage Security Incidents</a>
-  <a class="btn btn-secondary" href="{% url 'ai:monitoring' %}">AI Security Monitoring</a>
+  <a class="btn btn-secondary" href="{% url 'security:ai_monitoring' %}">AI Security Monitoring</a>
+  <a class="btn btn-secondary" href="{% url 'security:key_management' %}">Key Management</a>
+  <a class="btn btn-secondary" href="{% url 'healthcare_ai:risk_dashboard' %}">Risk Dashboard</a>
 </div>
+
+
+{{ analytics_json|json_script:"analytics-data" }}
+<script>
+  (function () {
+    let analytics;
+    try {
+      analytics = JSON.parse(document.getElementById('analytics-data').textContent);
+    } catch (e) {
+      analytics = { trend_labels: [], trend_normal: [], trend_anomalous: [], events_by_type: {}, risk_distribution: { low:0, medium:0, high:0, critical:0 } };
+    }
+    // Anomaly trend
+    new Chart(document.getElementById('anomalyTrendChart'), {
+      type: 'line',
+      data: {
+        labels: analytics.trend_labels,
+        datasets: [
+          { label: 'Normal', data: analytics.trend_normal, borderColor: '#16a34a', fill: false },
+          { label: 'Anomalous', data: analytics.trend_anomalous, borderColor: '#dc2626', fill: false }
+        ]
+      },
+      options: { plugins: { title: { display: true, text: 'Anomaly Detection Trend' } } }
+    });
+    // Normal vs anomalous
+    new Chart(document.getElementById('normalAnomalyChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Normal', 'Anomalous'],
+        datasets: [{ data: [analytics.stats.normal_activities, analytics.stats.anomalous_activities], backgroundColor: ['#16a34a', '#dc2626'] }]
+      },
+      options: { plugins: { title: { display: true, text: 'Normal vs Anomalous' } } }
+    });
+    // Events by type
+    const etLabels = Object.keys(analytics.events_by_type);
+    const etData = Object.values(analytics.events_by_type);
+    new Chart(document.getElementById('eventsByTypeChart'), {
+      type: 'bar',
+      data: { labels: etLabels, datasets: [{ label: 'Events', data: etData, backgroundColor: '#2563eb' }] },
+      options: { plugins: { title: { display: true, text: 'Security Events by Type' } } }
+    });
+    // Risk distribution
+    const rd = analytics.risk_distribution;
+    new Chart(document.getElementById('riskDistChart'), {
+      type: 'bar',
+      data: { labels: ['Low', 'Medium', 'High', 'Critical'], datasets: [{ label: 'Detections', data: [rd.low, rd.medium, rd.high, rd.critical], backgroundColor: ['#16a34a','#f59e0b','#ea580c','#dc2626'] }] },
+      options: { plugins: { title: { display: true, text: 'Risk Score Distribution' } } }
+    });
+  })();
+</script>
 {% endblock %}

@@ -2,7 +2,7 @@ from django.test import TestCase, Client
 
 from accounts.models import DoctorProfile, Specialization, User
 from audit.models import SecurityEvent
-from healthcare_ai.models import AIConversation, SecurityIncident, SymptomAssessment
+from healthcare_ai.models import ChatConversation, SecurityIncident, SymptomAssessment
 from healthcare_ai.services import incident_events
 from healthcare_ai.services import analyze_symptoms, calculate_risk_score, chatbot_response, recommend_doctors, summarize_incident
 from healthcare_ai.voice import normalize_command, resolve_voice_command
@@ -64,7 +64,7 @@ class HealthcareAITests(TestCase):
         client.login(email=user.email, password="TestPass123!Secure")
         response = client.post("/healthcare/chatbot/", {"message": "Where are appointments?"})
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(AIConversation.objects.filter(user=user).exists())
+        self.assertTrue(ChatConversation.objects.filter(user=user).exists())
 
     def test_risk_view_admin_only(self):
         user = User.objects.create_user(email="patientrisk@test.com", password="TestPass123!Secure", first_name="Pat", last_name="Risk", role="patient")
@@ -117,7 +117,7 @@ class HealthcareAITests(TestCase):
     def test_voice_command_role_restriction(self):
         result = resolve_voice_command("Open security monitoring", "patient")
         self.assertEqual(result["action"], "none")
-        self.assertIn("not available", result["message"])
+        self.assertIn("permission", result["message"])
 
     def test_voice_command_actions(self):
         self.assertEqual(resolve_voice_command("go back", "patient")["action"], "back")

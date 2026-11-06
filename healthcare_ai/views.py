@@ -11,6 +11,7 @@ import json
 from .models import AIConversation, FaceVerificationRecord, SecurityIncident, SymptomAssessment
 from .services import analyze_symptoms, calculate_risk_score, chatbot_response, explain_risk, incident_events, recommend_doctors, summarize_incident
 from .voice import resolve_voice_command
+from .risk_history import top_risk_accounts
 
 
 @login_required
@@ -31,16 +32,39 @@ def symptom_assessment_view(request):
     result = None
     recommended_doctors = []
     if request.method == "POST":
-        symptoms = request.POST.get("symptoms", "").strip()
-        if not symptoms:
+        data = {
+            "symptoms": request.POST.get("symptoms", "").strip(),
+            "additional_symptoms": request.POST.get("additional_symptoms", "").strip(),
+            "duration": request.POST.get("duration", "").strip(),
+            "severity": request.POST.get("severity", "").strip(),
+            "onset": request.POST.get("onset", "").strip(),
+            "frequency": request.POST.get("frequency", "").strip(),
+            "trend": request.POST.get("trend", "").strip(),
+            "medical_history": request.POST.get("medical_history", "").strip(),
+            "medications": request.POST.get("medications", "").strip(),
+            "allergies": request.POST.get("allergies", "").strip(),
+            "age_range": request.POST.get("age_range", "").strip(),
+        }
+        if not data["symptoms"]:
             messages.error(request, "Please enter symptoms.")
         else:
-            analysis = analyze_symptoms(symptoms)
+            analysis = analyze_symptoms(data)
             assessment = SymptomAssessment.objects.create(
                 patient=request.user,
-                symptoms=symptoms,
+                symptoms=data["symptoms"],
+                duration=data["duration"],
+                severity=data["severity"],
+                onset=data["onset"],
+                frequency=data["frequency"],
+                trend=data["trend"],
+                medical_history=data["medical_history"],
+                medications=data["medications"],
+                allergies=data["allergies"],
+                age_range=data["age_range"],
                 predicted_specialties=analysis["specialties"],
                 emergency=analysis["emergency"],
+                recommended_urgency=analysis["recommended_urgency"],
+                missing_info=analysis["missing_info"],
                 explanation=analysis["explanation"],
             )
             recommended_doctors = list(recommend_doctors(analysis["specialties"]))
@@ -54,15 +78,29 @@ def symptom_assessment_view(request):
 
 @login_required
 def chatbot_view(request):
+    from .models import ChatConversation, ChatMessage
+    from .services import chatbot_answer
+
+    conversation_id = request.POST.get("conversation_id") or request.GET.get("conversation")
+    conversation = None
+    if conversation_id:
+        conversation = ChatConversation.objects.filter(id=conversation_id, user=request.user).first()
+
     if request.method == "POST":
         message = request.POST.get("message", "").strip()
-        response = chatbot_response(message, request.user)
-        AIConversation.objects.create(user=request.user, message=message, response=response)
-        if request.headers.get("x-requested-with") == "XMLHttpRequest":
-            return JsonResponse({"response": response})
-        messages.success(request, "Assistant response generated.")
-    conversations = AIConversation.objects.filter(user=request.user)[:10]
-    return render(request, "healthcare_ai/chatbot.html", {"conversations": conversations})
+        if message:
+            response, sources, conversation = chatbot_answer(message, request.user, conversation)
+            if request.headers.get("x-requested-with") == "XMLHttpRequest":
+                return JsonResponse({"response": response, "sources": sources, "conversation_id": conversation.id})
+            messages.success(request, "Assistant response generated.")
+
+    conversations = ChatConversation.objects.filter(user=request.user).prefetch_related("messages")
+    active_messages = conversation.messages.all() if conversation else []
+    return render(request, "healthcare_ai/chatbot.html", {
+        "conversations": conversations,
+        "active_conversation": conversation,
+        "active_messages": active_messages,
+    })
 
 
 @login_required
@@ -142,6 +180,15 @@ def risk_analysis_view(request):
         risk = calculate_risk_score(features)
         result = {"features": features, "risk": risk, "explanation": explain_risk(features)}
     return render(request, "healthcare_ai/risk_analysis.html", {"result": result})
+
+
+@login_required
+def risk_dashboard_view(request):
+    if not is_administrator(request.user):
+        return render(request, "errors/403.html", status=403)
+    days = int(request.GET.get("days", 30) or 30)
+    accounts = top_risk_accounts(limit=15, days=days)
+    return render(request, "healthcare_ai/risk_dashboard.html", {"accounts": accounts, "days": days})
 
 
 @login_required

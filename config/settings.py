@@ -187,12 +187,34 @@ AUDIT_HASH_CHAIN_SECRET = config("AUDIT_HASH_CHAIN_SECRET", default="development
 MAX_UPLOAD_SIZE = config("MAX_UPLOAD_SIZE", default=10 * 1024 * 1024, cast=int)
 ALLOWED_UPLOAD_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg", ".txt", ".csv"]
 
-EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
-EMAIL_HOST = config("EMAIL_HOST", default="")
+EMAIL_BACKEND = config("EMAIL_BACKEND", default="")
+EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+
+# LLM / RAG configuration (optional)
+LLM_PROVIDER = config("LLM_PROVIDER", default="")
+LLM_API_KEY = config("LLM_API_KEY", default="")
+LLM_MODEL = config("LLM_MODEL", default="gpt-4o-mini")
+LLM_BASE_URL = config("LLM_BASE_URL", default="https://api.openai.com/v1")
+LLM_TIMEOUT = config("LLM_TIMEOUT", default=30, cast=int)
+RAG_TOP_K = config("RAG_TOP_K", default=4, cast=int)
+
+if not EMAIL_BACKEND:
+    if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+        EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    else:
+        EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+if EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend" and not EMAIL_HOST:
+    EMAIL_HOST = "smtp.gmail.com"
+
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER or "no-reply@localhost"
+
+if not DEBUG and "console" in EMAIL_BACKEND.lower():
+    raise RuntimeError("Production email configuration must use SMTP, not the console backend.")
 
 if not DEBUG and not SECRET_KEY.startswith("django-insecure"):
     pass

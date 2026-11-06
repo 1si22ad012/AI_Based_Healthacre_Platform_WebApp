@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Anomaly Detail{% endblock %}
+{% block content %}
+<h2>Anomaly Detection Detail #{{ detection.id }}</h2>
+<div class="card">
+  <table>
+    <tr><th>Detection ID</th><td>{{ detection.id }}</td></tr>
+    <tr><th>Detection Time</th><td>{{ detection.created_at }}</td></tr>
+    <tr><th>User</th><td>{{ detection.actor.email|default:"-" }}</td></tr>
+    <tr><th>Role</th><td>{{ detection.user_role }}</td></tr>
+    <tr><th>Event Type</th><td>{{ detection.event_type }}</td></tr>
+    <tr><th>Algorithm</th><td>{{ detection.detector }}</td></tr>
+    <tr><th>Model Version</th><td>{{ detection.model_version }}</td></tr>
+    <tr><th>Combined Score</th><td>{{ detection.combined_score }}</td></tr>
+    <tr><th>Threshold</th><td>{{ detection.threshold }}</td></tr>
+    <tr><th>Is Anomaly</th><td>{{ detection.is_anomaly }}</td></tr>
+    <tr><th>Risk Score</th><td>{{ detection.risk_score }} ({{ detection.risk_level }})</td></tr>
+    <tr><th>Action Taken</th><td>{{ detection.action_taken }}</td></tr>
+    <tr><th>Status</th><td>{{ detection.detection_status }}</td></tr>
+  </table>
+</div>
+<div class="card">
+  <h3>Input Features</h3>
+  <table>
+    <tr><th>Feature</th><th>Value</th></tr>
+    {% for k,v in detection.input_features.items %}
+    <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+<div class="card">
+  <h3>Individual Model Predictions</h3>
+  <table>
+    <tr><th>Model</th><th>Prediction</th><th>Score</th></tr>
+    <tr><td>Isolation Forest</td><td>{{ detection.isolation_forest_prediction }}</td><td>{{ detection.isolation_forest_score }}</td></tr>
+    <tr><td>One-Class SVM</td><td>{{ detection.one_class_svm_prediction }}</td><td>{{ detection.one_class_svm_score }}</td></tr>
+    <tr><td>Random Forest</td><td>{{ detection.random_forest_prediction }}</td><td>{{ detection.random_forest_score }}</td></tr>
+  </table>
+</div>
+<div class="card">
+  <h3>Reasons for Detection</h3>
+  <ul>
+    {% for r in detection.reasons %}
+    <li>{{ r }}</li>
+    {% empty %}
+    <li>No specific risk indicators identified.</li>
+    {% endfor %}
+  </ul>
+</div>
+<div class="card">
+  <h3>Related Records</h3>
+  <p>SecurityEvent: {{ detection.security_event_id|default:"-" }}</p>
+  <p>AnomalyAlert: {{ detection.anomaly_alert_id|default:"-" }}</p>
+  <p>SecurityIncident: {{ detection.security_incident_id|default:"-" }}</p>
+</div>
+{% endblock %}

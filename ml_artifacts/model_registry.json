@@ -1,0 +1,108 @@
+{
+  "version": "anomaly-20261106031247",
+  "training_timestamp": "2026-11-06T03:12:47.852738",
+  "dataset_source": "synthetic (ai_security/training.py)",
+  "feature_schema": [
+    "failed_logins",
+    "login_frequency",
+    "unusual_hour",
+    "denied_requests",
+    "upload_size_kb",
+    "record_access_count",
+    "cpu_utilization",
+    "encryption_failures",
+    "invalid_tags",
+    "suspicious_params"
+  ],
+  "metrics": {
+    "isolation_forest": {
+      "accuracy": 0.8974910394265233,
+      "precision": 0.5572755417956656,
+      "recall": 1.0,
+      "f1": 0.7157057654075547,
+      "roc_auc": 1.0,
+      "confusion_matrix": [
+        [
+          1072,
+          143
+        ],
+        [
+          0,
+          180
+        ]
+      ],
+      "false_positive_rate": 0.1176954732510288,
+      "false_negative_rate": 0.0
+    },
+    "one_class_svm": {
+      "accuracy": 0.9118279569892473,
+      "precision": 0.594059405940594,
+      "recall": 1.0,
+      "f1": 0.7453416149068323,
+      "roc_auc": 1.0,
+      "confusion_matrix": [
+        [
+          1092,
+          123
+        ],
+        [
+          0,
+          180
+        ]
+      ],
+      "false_positive_rate": 0.10123456790123457,
+      "false_negative_rate": 0.0
+    },
+    "random_forest": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "roc_auc": 1.0,
+      "confusion_matrix": [
+        [
+          1215,
+          0
+        ],
+        [
+          0,
+          180
+        ]
+      ],
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.0
+    },
+    "classification_report": {
+      "0.0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 1215.0
+      },
+      "1.0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 180.0
+      },
+      "accuracy": 1.0,
+      "macro avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 1395.0
+      },
+      "weighted avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 1395.0
+      }
+    }
+  },
+  "model_files": {
+    "isolation_forest": "C:\\Users\\Win\\OneDrive\\Documents\\Default Project\\ml_artifacts\\isolation_forest.joblib",
+    "one_class_svm": "C:\\Users\\Win\\OneDrive\\Documents\\Default Project\\ml_artifacts\\one_class_svm.joblib",
+    "random_forest": "C:\\Users\\Win\\OneDrive\\Documents\\Default Project\\ml_artifacts\\anomaly_random_forest.joblib"
+  }
+}

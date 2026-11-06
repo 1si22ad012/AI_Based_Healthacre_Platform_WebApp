@@ -56,6 +56,44 @@ class AnomalyAlert(models.Model):
         indexes = [models.Index(fields=["status", "created_at"])]
 
 
+class AnomalyDetection(models.Model):
+    STATUS_OPEN = "open"
+    STATUS_REVIEWED = "reviewed"
+    STATUS_CLOSED = "closed"
+
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="anomaly_detections")
+    user_role = models.CharField(max_length=20, blank=True)
+    event_type = models.CharField(max_length=40, default="anomaly")
+    detector = models.CharField(max_length=40, default="hybrid")
+    model_version = models.CharField(max_length=40, blank=True)
+    input_features = models.JSONField(default=dict, blank=True)
+    isolation_forest_prediction = models.CharField(max_length=20, blank=True)
+    isolation_forest_score = models.FloatField(default=0.0)
+    one_class_svm_prediction = models.CharField(max_length=20, blank=True)
+    one_class_svm_score = models.FloatField(default=0.0)
+    random_forest_prediction = models.CharField(max_length=20, blank=True)
+    random_forest_score = models.FloatField(default=0.0)
+    combined_score = models.FloatField(default=0.0)
+    threshold = models.FloatField(default=0.5)
+    is_anomaly = models.BooleanField(default=False)
+    risk_score = models.FloatField(default=0.0)
+    risk_level = models.CharField(max_length=20, default="low")
+    action_taken = models.CharField(max_length=80, blank=True)
+    reasons = models.JSONField(default=list, blank=True)
+    detection_status = models.CharField(max_length=20, default="open")
+    security_event = models.ForeignKey("SecurityEvent", on_delete=models.SET_NULL, null=True, blank=True, related_name="anomaly_detections")
+    anomaly_alert = models.ForeignKey("AnomalyAlert", on_delete=models.SET_NULL, null=True, blank=True, related_name="detections")
+    security_incident = models.ForeignKey("healthcare_ai.SecurityIncident", on_delete=models.SET_NULL, null=True, blank=True, related_name="anomaly_detections")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["is_anomaly", "created_at"]), models.Index(fields=["actor", "created_at"])]
+
+    def __str__(self):
+        return f"AnomalyDetection({self.id}, anomaly={self.is_anomaly})"
+
+
 class AuditEvent(models.Model):
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="audit_events")
     action = models.CharField(max_length=80)

@@ -13,11 +13,38 @@ class KeyMetadata(models.Model):
     key_id = models.CharField(max_length=64, unique=True)
     version = models.CharField(max_length=40, unique=True)
     algorithm = models.CharField(max_length=40, default="AES-256-GCM")
+    key_type = models.CharField(max_length=40, default="data_encryption")
     status = models.CharField(max_length=20, choices=KeyStatus.choices, default=KeyStatus.ACTIVE)
     fingerprint = models.CharField(max_length=128)
     created_at = models.DateTimeField(auto_now_add=True)
+    activated_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
     rotated_at = models.DateTimeField(null=True, blank=True)
+    usage_count = models.PositiveIntegerField(default=0)
+    rotation_history = models.JSONField(default=list, blank=True)
     notes = models.TextField(blank=True)
+
+
+class KeyActivity(models.Model):
+    ACTION_CHOICES = [
+        ("generated", "Generated"),
+        ("activated", "Activated"),
+        ("rotated", "Rotated"),
+        ("retired", "Retired"),
+        ("operation_failed", "Operation Failed"),
+        ("usage", "Usage"),
+    ]
+    key_version = models.CharField(max_length=40)
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="key_activities")
+    status = models.CharField(max_length=20, default="success")
+    message = models.CharField(max_length=255, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["key_version", "created_at"]), models.Index(fields=["action", "created_at"])]
 
     class Meta:
         ordering = ["-created_at"]

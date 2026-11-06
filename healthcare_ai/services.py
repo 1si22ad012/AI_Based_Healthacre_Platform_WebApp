@@ -33,8 +33,18 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower()).strip()
 
 
-def analyze_symptoms(symptoms: str) -> Dict[str, object]:
-    text = _normalize(symptoms)
+def _symptom_text(data) -> str:
+    if isinstance(data, str):
+        return data
+    if isinstance(data, dict):
+        parts = [data.get("symptoms", ""), data.get("additional_symptoms", ""), data.get("medical_history", "")]
+        return " ".join(str(p) for p in parts if p)
+    return str(data)
+
+
+def analyze_symptoms(data) -> Dict[str, object]:
+    text = _normalize(_symptom_text(data))
+    structured = data if isinstance(data, dict) else {"symptoms": data}
     emergency = any(keyword in text for keyword in EMERGENCY_KEYWORDS)
     matches = []
     for specialty, keywords in SYMPTOM_MAP.items():
@@ -45,16 +55,46 @@ def analyze_symptoms(symptoms: str) -> Dict[str, object]:
     specialties = [item[0].title() for item in matches[:3]]
     if not specialties:
         specialties = ["General Physician"]
+
+    missing = []
+    if not structured.get("duration"):
+        missing.append("duration")
+    if not structured.get("severity"):
+        missing.append("severity")
+
+    if emergency:
+        urgency = "emergency"
+    elif structured.get("severity", "").lower() in ("severe", "high"):
+        urgency = "urgent"
+    else:
+        urgency = "routine"
+
+    # Retrieve trusted guidance
+    try:
+        from .rag import retrieve
+
+        guidance = retrieve(text, top_k=2)
+    except Exception:
+        guidance = []
+
     explanation = (
-        "The symptoms were matched to possible specialties using a transparent keyword-based classifier. "
+        "Symptoms were matched to possible specialties using a transparent keyword-based classifier. "
         "This is preliminary navigation only and not a diagnosis."
     )
     if emergency:
         explanation += " Emergency symptoms may be present; seek immediate medical care."
+    if guidance:
+        explanation += " Related trusted information: " + "; ".join(g["chunk_text"] for g in guidance)
+    if missing:
+        explanation += " Missing information: " + ", ".join(missing) + "."
+
     return {
         "specialties": specialties,
         "emergency": emergency,
+        "recommended_urgency": urgency,
+        "missing_info": missing,
         "explanation": explanation,
+        "guidance": guidance,
     }
 
 
@@ -67,7 +107,10 @@ def recommend_doctors(specialties: List[str]):
     ).select_related("user", "specialization")
 
 
-def chatbot_response(message: str, user=None) -> str:
+EMERGENCY_KEYWORDS_CHAT = ["chest pain", "difficulty breathing", "shortness of breath", "unconscious", "seizure", "stroke", "severe bleeding", "loss of consciousness", "suicidal"]
+
+
+def _rule_based_chatbot(message: str) -> str:
     text = _normalize(message)
     if "appointment" in text:
         return "You can request or view appointments from the Appointments page. Please consult a qualified healthcare professional for medical advice."
@@ -80,6 +123,87 @@ def chatbot_response(message: str, user=None) -> str:
     if "emergency" in text:
         return "If you may be experiencing a medical emergency, contact local emergency services immediately."
     return "I can help with general healthcare information, app navigation, appointments, and doctor search. I cannot diagnose conditions or recommend treatment. Please consult a qualified healthcare professional."
+
+
+def chatbot_response(message: str, user=None) -> str:
+    return _rule_based_chatbot(message)
+
+
+def _safety_filter(text: str) -> str:
+    if not text:
+        return text
+    lowered = text.lower()
+    unsafe_phrases = ["you have", "diagnosis is", "take this medication", "stop taking", "dosage of"]
+    for phrase in unsafe_phrases:
+        if phrase in lowered:
+            return (
+                "I can provide general health information only. I cannot diagnose conditions or prescribe treatment. "
+                "Please consult a qualified healthcare professional."
+            )
+    return text
+
+
+def chatbot_answer(message: str, user=None, conversation=None):
+    """Return (response_text, sources_list, conversation). Uses LLM+RAG when configured, else safe fallback."""
+    from .models import ChatConversation, ChatMessage
+    from .rag import retrieve
+    from .llm import call_llm, llm_configured, SAFETY_SYSTEM_PROMPT
+
+    message = (message or "").strip()
+    if not message:
+        return "Please enter a message.", [], conversation
+
+    if conversation is None:
+        conversation = ChatConversation.objects.create(user=user, title=message[:80])
+
+    ChatMessage.objects.create(conversation=conversation, role="user", content=message)
+
+    # Emergency detection
+    lowered = _normalize(message)
+    is_emergency = any(k in lowered for k in EMERGENCY_KEYWORDS_CHAT)
+
+    sources = retrieve(message)
+    context_block = ""
+    if sources:
+        context_block = "\n\nRelevant trusted sources:\n" + "\n".join(
+            f"- {s['source_title']}: {s['chunk_text']}" for s in sources
+        )
+
+    if llm_configured():
+        history_msgs = [{"role": "system", "content": SAFETY_SYSTEM_PROMPT}]
+        recent = list(conversation.messages.order_by("-created_at")[:6])
+        recent.reverse()
+        for m in recent:
+            if m.role in ("user", "assistant"):
+                history_msgs.append({"role": m.role, "content": m.content})
+        user_content = message
+        if context_block:
+            user_content += context_block
+        if is_emergency:
+            user_content += "\n\nNote: The user may be describing an emergency. Prioritize advising immediate emergency services."
+        history_msgs.append({"role": "user", "content": user_content})
+        text, err = call_llm(history_msgs)
+        if text:
+            text = _safety_filter(text)
+            if is_emergency and "emergency" not in text.lower():
+                text = "If this may be a medical emergency, contact local emergency services immediately. " + text
+            if sources:
+                refs = "\n\nSources: " + ", ".join(s["source_title"] for s in sources)
+                text = text + refs
+        else:
+            text = _rule_based_chatbot(message)
+            if is_emergency:
+                text = "If this may be a medical emergency, contact local emergency services immediately. " + text
+    else:
+        text = _rule_based_chatbot(message)
+        if is_emergency:
+            text = "If this may be a medical emergency, contact local emergency services immediately. " + text
+        if sources:
+            text = text + "\n\nRelated information: " + "; ".join(s["chunk_text"] for s in sources[:2])
+
+    ChatMessage.objects.create(conversation=conversation, role="assistant", content=text, sources=sources)
+    conversation.save(update_fields=["updated_at"])
+    return text, sources, conversation
 
 
 def calculate_risk_score(event: Dict[str, object]) -> Dict[str, object]:

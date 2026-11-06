@@ -9,7 +9,8 @@ from django.utils import timezone
 
 from accounts.models import Role
 from accounts.permissions import can_access_patient
-from ai_security.services import detect_anomaly, select_policy
+from ai_security.services import detect_anomaly, extract_security_features, persist_anomaly_detection, select_policy
+from security.key_management import record_key_usage
 from audit.services import create_audit_event, create_security_event
 from security.key_management import ensure_active_key
 from security.models import EncryptionOperation, KeyMetadata
@@ -52,7 +53,13 @@ def encrypt_medical_record(user, patient, title, content, sensitivity="high", re
         "invalid_tags": 0,
         "suspicious_params": 0,
     }
-    anomaly_result = detect_anomaly(anomaly_context)
+    features = extract_security_features(anomaly_context)
+    anomaly_result = detect_anomaly(features)
+    if anomaly_result.get("is_anomaly"):
+        try:
+            persist_anomaly_detection(features, anomaly_result, actor=user, request=request, event_type="record_create")
+        except Exception:
+            pass
     context = {
         "sensitivity": sensitivity,
         "role": user.role,
@@ -105,7 +112,9 @@ def encrypt_medical_record(user, patient, title, content, sensitivity="high", re
     start = time.perf_counter()
     try:
         ciphertext, nonce, tag, algorithm = aes_encrypt(content.encode("utf-8"), key_version, key_size)
+        record_key_usage(key_version, success=True, actor=user, operation="encrypt_medical_record")
     except Exception as exc:
+        record_key_usage(key_version, success=False, actor=user, operation="encrypt_medical_record")
         EncryptionOperation.objects.create(
             user=user, operation="encrypt", policy=policy["policy"], algorithm=policy["algorithm"],
             key_version=key_version, sensitivity=sensitivity, data_size=len(content.encode()),
@@ -152,7 +161,9 @@ def decrypt_medical_record(user, record, request=None):
     start = time.perf_counter()
     try:
         plaintext = aes_decrypt(record.encrypted_content, record.nonce, record.tag, record.key_version, key_size)
+        record_key_usage(record.key_version, success=True, actor=user, operation="decrypt_medical_record")
     except Exception as exc:
+        record_key_usage(record.key_version, success=False, actor=user, operation="decrypt_medical_record")
         EncryptionOperation.objects.create(
             user=user, operation="decrypt", policy="n/a", algorithm=record.algorithm,
             key_version=record.key_version, sensitivity=record.sensitivity, data_size=len(record.encrypted_content),

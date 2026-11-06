@@ -1,27 +1,90 @@
 {% extends "base.html" %}
-{% block title %}Key Management{% endblock %}
+{% block title %}Security Key Management{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
 {% block content %}
-<h2>Key Management</h2>
+<h2>Security Key Management</h2>
+
 <div class="card">
-  <form method="post" action="{% url 'security:rotate_key' %}">
+  <h3>Key Overview</h3>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+    <div class="card"><strong>Total Keys</strong><br>{{ overview.total }}</div>
+    <div class="card"><strong>Active</strong><br>{{ overview.active }}</div>
+    <div class="card"><strong>Retired</strong><br>{{ overview.retired }}</div>
+    <div class="card"><strong>Expired/Revoked</strong><br>{{ overview.expired }}</div>
+    <div class="card"><strong>Due for Rotation</strong><br>{{ overview.due_for_rotation }}</div>
+    <div class="card"><strong>Failed Operations</strong><br>{{ overview.failed_operations }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Key Rotation</h3>
+  <form method="post" action="{% url 'security:rotate_key' %}" onsubmit="return confirm('Rotate the active encryption key? Existing data remains decryptable with old keys.');">
     {% csrf_token %}
     <button class="btn btn-danger" type="submit">Rotate Active Key</button>
   </form>
+  <p class="muted">Rotation creates a new active key and retires the previous one. Existing encrypted payloads remain decryptable.</p>
 </div>
+
 <div class="card">
+  <h3>Key Inventory</h3>
   <table>
-    <tr><th>Version</th><th>Algorithm</th><th>Status</th><th>Fingerprint</th><th>Created</th></tr>
+    <tr><th>Key ID</th><th>Version</th><th>Algorithm</th><th>Status</th><th>Created</th><th>Activated</th><th>Expires</th><th>Usage Count</th><th>Last Rotation</th></tr>
     {% for key in keys %}
     <tr>
+      <td>{{ key.key_id }}</td>
       <td>{{ key.version }}</td>
       <td>{{ key.algorithm }}</td>
       <td>{{ key.status }}</td>
-      <td>{{ key.fingerprint|truncatechars:16 }}</td>
       <td>{{ key.created_at }}</td>
+      <td>{{ key.activated_at|default:key.created_at }}</td>
+      <td>{{ key.expires_at|default:"-" }}</td>
+      <td>{{ key.usage_count }}</td>
+      <td>{{ key.rotated_at|default:"-" }}</td>
     </tr>
     {% empty %}
-    <tr><td colspan="5" class="empty">No keys</td></tr>
+    <tr><td colspan="9" class="empty">No keys</td></tr>
     {% endfor %}
   </table>
 </div>
+
+<div class="card">
+  <h3>Key Usage</h3>
+  <canvas id="keyUsageChart"></canvas>
+</div>
+
+<div class="card">
+  <h3>Key Activity History</h3>
+  <table>
+    <tr><th>Time</th><th>Key Version</th><th>Action</th><th>Status</th><th>Message</th></tr>
+    {% for a in activities %}
+    <tr>
+      <td>{{ a.created_at }}</td>
+      <td>{{ a.key_version }}</td>
+      <td>{{ a.action }}</td>
+      <td>{{ a.status }}</td>
+      <td>{{ a.message }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" class="empty">No activity</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<script>
+  (function () {
+    const labels = [];
+    const data = [];
+    {% for key in keys %}
+    labels.push('{{ key.version }}');
+    data.push({{ key.usage_count }});
+    {% endfor %}
+    new Chart(document.getElementById('keyUsageChart'), {
+      type: 'bar',
+      data: { labels: labels, datasets: [{ label: 'Usage Count', data: data, backgroundColor: '#2563eb' }] },
+      options: { plugins: { title: { display: true, text: 'Key Usage Count' } } }
+    });
+  })();
+</script>
 {% endblock %}

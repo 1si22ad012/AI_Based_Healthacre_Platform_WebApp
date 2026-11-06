@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Model Information{% endblock %}
+{% block content %}
+<h2>Model Information</h2>
+
+<div class="card">
+  <h3>Adaptive Encryption Policy Model</h3>
+  <table>
+    <tr><th>Name</th><td>{{ info.policy_model.name }}</td></tr>
+    <tr><th>Algorithm</th><td>{{ info.policy_model.algorithm }}</td></tr>
+    <tr><th>Version</th><td>{{ info.policy_model.version }}</td></tr>
+    <tr><th>Dataset</th><td>{{ info.policy_model.dataset }}</td></tr>
+    <tr><th>Threshold</th><td>{{ info.policy_model.threshold }}</td></tr>
+    <tr><th>Input Features</th><td>{{ info.policy_model.features|join:", " }}</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>Anomaly Detection Models</h3>
+  {% for m in info.anomaly_models %}
+  <h4>{{ m.algorithm }} ({{ m.name }})</h4>
+  <table>
+    <tr><th>Version</th><td>{{ m.version }}</td></tr>
+    <tr><th>Dataset</th><td>{{ m.dataset }}</td></tr>
+    <tr><th>Threshold</th><td>{{ m.threshold }}</td></tr>
+    <tr><th>Status</th><td>{{ m.status }}</td></tr>
+    <tr><th>Input Features</th><td>{{ m.features|join:", " }}</td></tr>
+  </table>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h3>Feature Descriptions</h3>
+  <table>
+    <tr><th>Feature</th><th>Description</th></tr>
+    {% for k,v in info.feature_descriptions.items %}
+    <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h3>Training Registry (from ml_artifacts/model_registry.json)</h3>
+  {% if info.registry %}
+  <p><strong>Version:</strong> {{ info.registry.version }}</p>
+  <p><strong>Training timestamp:</strong> {{ info.registry.training_timestamp }}</p>
+  <p><strong>Dataset source:</strong> {{ info.registry.dataset_source }}</p>
+  <p><strong>Feature schema:</strong> {{ info.registry.feature_schema|join:", " }}</p>
+  <h4>Anomaly Metrics</h4>
+  <pre>{{ info.registry.metrics|pprint }}</pre>
+  {% else %}
+  <p>No training registry found. Run <code>python manage.py train_security_models</code>.</p>
+  {% endif %}
+</div>
+<div class="card">
+  <h3>Last Prediction</h3>
+  {% if info.last_prediction %}
+  <p>ID {{ info.last_prediction.id }} at {{ info.last_prediction.created_at }} — anomaly={{ info.last_prediction.is_anomaly }}, score={{ info.last_prediction.combined_score }}</p>
+  {% else %}
+  <p>No predictions recorded yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

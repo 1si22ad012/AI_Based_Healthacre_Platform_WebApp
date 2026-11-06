@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Verify Your Email{% endblock %}
+{% block content %}
+<div class="card" style="max-width:480px;margin:40px auto;">
+  <h2>Verify Your Email</h2>
+  <p>We sent a six-digit verification code to your registered email.</p>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label for="id_otp">Verification code</label>
+      <input type="text" name="otp" id="id_otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus>
+    </div>
+    <button class="btn" type="submit">Verify</button>
+  </form>
+  <form method="post" action="{% url 'accounts:resend_otp' %}" style="margin-top:12px;">
+    {% csrf_token %}
+    <button class="btn btn-secondary" type="submit">Resend OTP</button>
+  </form>
+  <p class="empty">The code expires in 5 minutes. Do not share it with anyone.</p>
+  <div id="otp-countdown" class="empty"></div>
+</div>
+<script>
+  (function () {
+    let seconds = 60;
+    const element = document.getElementById("otp-countdown");
+    function tick() {
+      if (!element) return;
+      element.textContent = "Resend available in " + seconds + " seconds.";
+      if (seconds <= 0) {
+        element.textContent = "You may request a new code.";
+        return;
+      }
+      seconds -= 1;
+      setTimeout(tick, 1000);
+    }
+    tick();
+  })();
+</script>
+{% endblock %}

@@ -9,6 +9,10 @@ from django.conf import settings
 from django.utils import timezone
 
 from security.models import EncryptionOperation
+from audit.models import AnomalyDetection, SecurityEvent, AnomalyAlert
+from audit.services import create_audit_event, create_security_event, notify_user
+from healthcare_ai.models import SecurityIncident
+from healthcare_ai.services import calculate_risk_score
 
 MODEL_DIR = Path(settings.ML_ARTIFACT_DIR)
 POLICY_MODEL = "policy_random_forest.joblib"
@@ -214,3 +218,149 @@ def detect_anomaly(context: Dict[str, Any]) -> Dict[str, Any]:
         "fallback_used": fallback_used,
         "model_version": ANOMALY_MODEL_VERSION,
     }
+
+
+ANOMALY_FEATURE_NAMES = list(ANOMALY_FEATURES)
+
+
+def extract_security_features(context: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate and normalize anomaly features. Never includes sensitive payloads."""
+    features = {}
+    for key in ANOMALY_FEATURES:
+        raw = context.get(key, 0)
+        try:
+            if key in ("unusual_hour",):
+                features[key] = 1 if bool(raw) or str(raw).lower() in {"1", "true", "yes"} else 0
+            else:
+                features[key] = float(raw)
+        except (TypeError, ValueError):
+            features[key] = 0.0
+    # Clamp negatives
+    for key, value in list(features.items()):
+        if isinstance(value, float) and value < 0:
+            features[key] = 0.0
+    return features
+
+
+def _detector_prediction(detectors: Dict[str, Any], name: str) -> str:
+    entry = detectors.get(name, {})
+    return str(entry.get("prediction", ""))
+
+
+def _detector_score(detectors: Dict[str, Any], name: str) -> float:
+    entry = detectors.get(name, {})
+    try:
+        return float(entry.get("score", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def persist_anomaly_detection(context, result, actor=None, request=None, event_type="security_activity"):
+    """Persist anomaly detection result, creating event/alert/incident as appropriate. Returns AnomalyDetection."""
+    from django.db import transaction
+
+    features = extract_security_features(context if isinstance(context, dict) else {})
+    is_anomaly = bool(result.get("is_anomaly", False))
+    combined_score = float(result.get("score", 0.0) or 0.0)
+    detectors = result.get("detectors", {}) or {}
+    risk_features = {
+        "failed_logins": int(features.get("failed_logins", 0) or 0),
+        "denied_requests": int(features.get("denied_requests", 0) or 0),
+        "invalid_tags": int(features.get("invalid_tags", 0) or 0),
+        "unusual_hour": bool(features.get("unusual_hour", 0)),
+        "anomaly": is_anomaly,
+    }
+    risk = calculate_risk_score(risk_features)
+
+    # Dedup: skip if identical anomaly recorded in last 60s for same actor
+    dedup_key = f"anomaly-dedup:{getattr(actor, 'id', None)}:{round(combined_score, 3)}:{is_anomaly}"
+    from django.core.cache import cache
+
+    if is_anomaly and cache.get(dedup_key):
+        return None
+    if is_anomaly:
+        cache.set(dedup_key, True, 60)
+
+    security_event = None
+    anomaly_alert = None
+    security_incident = None
+
+    with transaction.atomic():
+        if is_anomaly:
+            security_event = create_security_event(
+                "anomaly",
+                actor=actor,
+                request=request,
+                metadata={"features": features, "detector": "hybrid", "score": combined_score},
+                severity="high" if combined_score >= 0.7 else "medium",
+                risk_score=combined_score,
+            )
+            anomaly_alert = AnomalyAlert.objects.create(
+                security_event=security_event,
+                detector="hybrid",
+                score=combined_score,
+                threshold=float(result.get("threshold", 0.5) or 0.5),
+                status="open",
+            )
+            security_incident = None
+            for inc in SecurityIncident.objects.all().order_by("-created_at")[:20]:
+                if security_event.id in (inc.related_events or []):
+                    security_incident = inc
+                    break
+            # notify admins for high risk
+            if risk["level"] in ("high", "critical"):
+                try:
+                    from accounts.models import User
+
+                    for admin_user in (User.objects.filter(role="admin") | User.objects.filter(is_superuser=True)):
+                        notify_user(
+                            admin_user,
+                            "Anomaly detected",
+                            f"Suspicious activity detected (score {combined_score}). Review required.",
+                            category="security",
+                            url="/security/ai-monitoring/",
+                        )
+                except Exception:
+                    pass
+        else:
+            # Record normal detection as low-severity security event only when explicitly requested? Skip to avoid noise.
+            pass
+
+        detection = AnomalyDetection.objects.create(
+            actor=actor,
+            user_role=getattr(actor, "role", "") if actor else "",
+            event_type=event_type,
+            detector="hybrid",
+            model_version=result.get("model_version", ANOMALY_MODEL_VERSION),
+            input_features=features,
+            isolation_forest_prediction=_detector_prediction(detectors, "isolation_forest"),
+            isolation_forest_score=_detector_score(detectors, "isolation_forest"),
+            one_class_svm_prediction=_detector_prediction(detectors, "one_class_svm"),
+            one_class_svm_score=_detector_score(detectors, "one_class_svm"),
+            random_forest_prediction=_detector_prediction(detectors, "random_forest"),
+            random_forest_score=_detector_score(detectors, "random_forest"),
+            combined_score=combined_score,
+            threshold=float(result.get("threshold", 0.5) or 0.5),
+            is_anomaly=is_anomaly,
+            risk_score=risk["score"],
+            risk_level=risk["level"],
+            reasons=risk.get("reasons", []),
+            action_taken="blocked" if (is_anomaly and event_type == "record_create") else ("recorded" if is_anomaly else "allowed"),
+            detection_status="open" if is_anomaly else "closed",
+            security_event=security_event,
+            anomaly_alert=anomaly_alert,
+            security_incident=security_incident,
+        )
+
+        if security_event:
+            create_audit_event(
+                "anomaly.detected",
+                actor=actor,
+                target_type="AnomalyDetection",
+                target_id=detection.id,
+                request=request,
+                result="success",
+                severity="high" if is_anomaly else "info",
+                details={"score": combined_score, "risk_level": risk["level"], "event_type": event_type},
+            )
+        return detection

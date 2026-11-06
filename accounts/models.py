@@ -1,3 +1,4 @@
+from django.contrib.auth import hashers
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
@@ -45,6 +46,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     approved_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    must_change_password = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
     last_login_ip = models.GenericIPAddressField(null=True, blank=True)
     failed_login_count = models.PositiveIntegerField(default=0)
@@ -74,6 +76,40 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def is_administrator(self):
         return self.role == Role.ADMIN or self.is_superuser
+
+
+class EmailOTP(models.Model):
+    PURPOSE_LOGIN = "login"
+    PURPOSE_CHOICES = [(PURPOSE_LOGIN, "Login")]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="email_otps")
+    otp_hash = models.CharField(max_length=128)
+    purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES, default=PURPOSE_LOGIN)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=5)
+    last_sent_at = models.DateTimeField(auto_now_add=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["user", "purpose", "expires_at"])]
+
+    def __str__(self):
+        return f"EmailOTP(user={self.user_id}, used={bool(self.used_at)})"
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_used(self):
+        return self.used_at is not None
+
+    def check_otp(self, otp: str) -> bool:
+        return hashers.check_password(otp, self.otp_hash)
 
 
 class PatientProfile(models.Model):

@@ -10,7 +10,7 @@ from accounts.permissions import can_access_patient
 from audit.services import create_audit_event, create_security_event
 from security.models import EncryptedDocument
 from security.services import aes_encrypt, aes_decrypt, aes_key_size_from_algorithm
-from security.key_management import ensure_active_key
+from security.key_management import ensure_active_key, record_key_usage
 from .models import LabReport, LabTestRequest, LabTestStatus
 
 
@@ -59,6 +59,7 @@ def upload_report(user, lab_request, uploaded_file: UploadedFile, result_text=""
     key_version = f"{base_version}-aes256"
     ensure_active_key(key_version, key_size)
     ciphertext, nonce, tag, algorithm = aes_encrypt(raw, key_version, key_size, aad=lab_request.test_type.encode())
+    record_key_usage(key_version, success=True, actor=user, operation="upload_report_file")
 
     doc = EncryptedDocument.objects.create(
         owner=lab_request.patient.user,
@@ -84,6 +85,7 @@ def upload_report(user, lab_request, uploaded_file: UploadedFile, result_text=""
     result_algorithm = algorithm
     if result_text:
         result_ciphertext, result_nonce, result_tag, result_algorithm = aes_encrypt(result_text.encode("utf-8"), key_version, key_size)
+        record_key_usage(key_version, success=True, actor=user, operation="upload_report_text")
 
     report = LabReport.objects.create(
         request=lab_request,

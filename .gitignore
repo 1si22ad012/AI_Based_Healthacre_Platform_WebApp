@@ -1,4 +1,3 @@
-
 # Python
 __pycache__/
 *.py[cod]
@@ -15,14 +14,14 @@ env/
 .env.*
 !.env.example
 
-# Databases and backups
+# Databases
 db.sqlite3
 *.sqlite3
 *.sql
 *.dump
 *.bak
 
-# User uploads and private data
+# User uploads
 media/
 uploads/
 
@@ -35,11 +34,9 @@ staticfiles/
 htmlcov/
 .pytest_cache/
 
-# IDE files
+# IDE and OS
 .vscode/
 .idea/
-
-# OS files
 .DS_Store
 Thumbs.db
 

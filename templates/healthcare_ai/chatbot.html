@@ -1,23 +1,53 @@
 {% extends "base.html" %}
-{% block title %}AI Chatbot{% endblock %}
+{% block title %}Healthcare Chatbot{% endblock %}
 {% block content %}
-<h2>AI Healthcare Assistant</h2>
-<div class="card">
-  <form method="post">
-    {% csrf_token %}
-    <textarea name="message" rows="3" placeholder="Ask a general healthcare question"></textarea>
-    <button class="btn" type="submit">Send</button>
-  </form>
-  <p class="empty">This assistant provides general information only and does not diagnose or prescribe.</p>
+<h2>Healthcare Chatbot</h2>
+<p class="muted">General health information only. Not a diagnosis. Consult a qualified healthcare professional.</p>
+
+<div style="display:grid;grid-template-columns:260px 1fr;gap:16px;">
+  <div class="card">
+    <h3>Conversations</h3>
+    <a class="btn" href="{% url 'healthcare_ai:chatbot' %}">New Conversation</a>
+    <ul>
+      {% for c in conversations %}
+      <li><a href="{% url 'healthcare_ai:chatbot' %}?conversation={{ c.id }}">{{ c.title|default:"Untitled" }}</a> <small>{{ c.updated_at }}</small></li>
+      {% empty %}
+      <li>No conversations yet.</li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="card">
+    <div id="chat-messages" style="max-height:400px;overflow:auto;">
+      {% for m in active_messages %}
+      <div style="margin-bottom:12px;">
+        <strong>{{ m.role|title }}</strong> <small>{{ m.created_at }}</small>
+        <div>{{ m.content }}</div>
+        {% if m.sources %}
+        <small>Sources: {% for s in m.sources %}{{ s.source_title }}{% if not forloop.last %}, {% endif %}{% endfor %}</small>
+        {% endif %}
+      </div>
+      {% empty %}
+      <p>Start a conversation.</p>
+      {% endfor %}
+    </div>
+    <form method="post" id="chat-form">
+      {% csrf_token %}
+      {% if active_conversation %}<input type="hidden" name="conversation_id" value="{{ active_conversation.id }}">{% endif %}
+      <textarea name="message" rows="3" style="width:100%;" placeholder="Ask a health question..."></textarea>
+      <button class="btn" type="submit">Send</button>
+    </form>
+    <div id="chat-loading" style="display:none;">Loading...</div>
+  </div>
 </div>
-<div class="card">
-  <h3>Recent Conversation</h3>
-  {% for c in conversations %}
-  <p><strong>You:</strong> {{ c.message }}</p>
-  <p><strong>Assistant:</strong> {{ c.response }}</p>
-  <hr>
-  {% empty %}
-  <p class="empty">No conversation yet.</p>
-  {% endfor %}
-</div>
+
+<script>
+  (function () {
+    const form = document.getElementById('chat-form');
+    const loading = document.getElementById('chat-loading');
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+      // allow normal submit; AJAX optional
+    });
+  })();
+</script>
 {% endblock %}

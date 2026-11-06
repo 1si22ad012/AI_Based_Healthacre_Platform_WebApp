@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from audit.models import AnomalyAlert, SecurityEvent
 from audit.services import create_security_event
 from .serializers import AnomalyAlertSerializer, SecurityEventSerializer
-from .services import detect_anomaly
+from .services import detect_anomaly, extract_security_features, persist_anomaly_detection
 
 
 class SecurityEventListView(generics.ListAPIView):
@@ -24,9 +24,9 @@ class DetectAnomalyView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        result = detect_anomaly(request.data or {})
+        features = extract_security_features(request.data or {})
+        result = detect_anomaly(features)
         if result.get("is_anomaly"):
-            event = create_security_event("anomaly", actor=request.user, request=request, metadata=request.data or {}, severity="high", risk_score=result.get("score", 0.0))
-            alert = AnomalyAlert.objects.create(security_event=event, detector="hybrid", score=result["score"], threshold=result["threshold"], status="open")
-            result["alert_id"] = alert.id
+            detection = persist_anomaly_detection(features, result, actor=request.user, request=request, event_type="api_detect")
+            result["detection_id"] = getattr(detection, "id", None)
         return Response(result, status=status.HTTP_200_OK)

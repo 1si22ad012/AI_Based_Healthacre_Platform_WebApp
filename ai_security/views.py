@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from accounts.permissions import is_admin
 from audit.models import AnomalyAlert, SecurityEvent
 from audit.services import create_audit_event
-from .services import detect_anomaly
+from .services import detect_anomaly, extract_security_features
 
 
 @login_required
@@ -58,19 +58,17 @@ def detect_demo_view(request):
             "invalid_tags": int(request.POST.get("invalid_tags", 0) or 0),
             "suspicious_params": int(request.POST.get("suspicious_params", 0) or 0),
         }
-        result = detect_anomaly(context)
-        # Create security event + alert if anomaly.
-        from audit.services import create_security_event
-        event = create_security_event("anomaly", actor=request.user, request=request, metadata=context, severity="high" if result["is_anomaly"] else "info", risk_score=result["score"])
+        features = extract_security_features(context)
+        result = detect_anomaly(features)
+        from ai_security.services import persist_anomaly_detection
+
+        detection = persist_anomaly_detection(features, result, actor=request.user, request=request, event_type="manual_detect_demo")
         if result["is_anomaly"]:
-            from audit.models import AnomalyAlert
-            alert = AnomalyAlert.objects.create(security_event=event, detector="hybrid", score=result["score"], threshold=result["threshold"], status="open")
-            from healthcare_ai.models import SecurityIncident
-            SecurityIncident.objects.create(title="Anomaly detected", severity="high", summary=f"Hybrid anomaly detector score {result['score']} exceeded threshold {result['threshold']}.", related_events=[event.id])
             from audit.realtime import broadcast_admin_alert
-            broadcast_admin_alert({"type": "anomaly_alert", "alert_id": alert.id, "score": alert.score, "status": alert.status})
+
+            broadcast_admin_alert({"type": "anomaly_alert", "detection_id": getattr(detection, "id", None), "score": result["score"], "status": "open"})
             messages.warning(request, "Anomaly detected and alert created.")
         else:
             messages.success(request, "No anomaly detected.")
-        return render(request, "ai/detect_demo.html", {"result": result, "context": context})
+        return render(request, "ai/detect_demo.html", {"result": result, "context": features})
     return render(request, "ai/detect_demo.html", {"result": None})

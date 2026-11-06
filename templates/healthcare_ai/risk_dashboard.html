@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Risk Dashboard{% endblock %}
+{% block content %}
+<h2>Security Risk Dashboard</h2>
+<p>Time window: {{ days }} days</p>
+<div class="card">
+  <table>
+    <tr><th>User</th><th>Risk Score</th><th>Level</th><th>Events</th><th>Anomalies</th><th>Factors</th></tr>
+    {% for a in accounts %}
+    <tr>
+      <td>{{ a.user.email }}</td>
+      <td>{{ a.risk.score }}</td>
+      <td>{{ a.risk.level }}</td>
+      <td>{{ a.event_count }}</td>
+      <td>{{ a.anomaly_count }}</td>
+      <td>{{ a.factors|join:", " }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="empty">No data</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

@@ -8,6 +8,7 @@ from django.utils import timezone
 from accounts.permissions import can_access_patient
 from audit.services import create_audit_event
 from security.services import ecc_sign, ecc_verify
+from security.key_management import record_key_usage
 from .models import Prescription, PrescriptionItem, PrescriptionStatus
 
 
@@ -65,6 +66,7 @@ def create_prescription(user, patient, title, payload, items=None, request=None,
     ensure_active_key(key_version, key_size)
     plaintext = json.dumps(payload, default=str).encode("utf-8")
     ciphertext, nonce, tag, algorithm = aes_encrypt(plaintext, key_version, key_size)
+    record_key_usage(key_version, success=True, actor=user, operation="create_prescription")
 
     prescription = Prescription.objects.create(
         patient=patient,

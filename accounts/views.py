@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.core.mail import send_mail
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
@@ -14,7 +15,8 @@ from django.utils import timezone
 from healthcare_ai.services import calculate_risk_score, explain_risk
 from healthcare_ai.models import LoginAudit
 from .forms import AdminUserForm, ProfileForm, RegistrationForm
-from .models import ApprovalStatus, DoctorProfile, PatientProfile, Role, Specialization, User
+from .models import ApprovalStatus, DoctorProfile, EmailOTP, PatientProfile, Role, Specialization, User
+from .otp import create_login_otp, resend_cooldown_remaining, verify_login_otp
 from .permissions import is_admin
 
 
@@ -39,44 +41,41 @@ def login_view(request):
             return render(request, "accounts/login.html")
         user = authenticate(request, username=email, password=password)
         if user is not None and user.is_active:
-            login(request, user)
             cache.delete(cache_key)
-            user_agent = request.META.get("HTTP_USER_AGENT", "")[:500]
-            risk = calculate_risk_score({
-                "failed_logins": user.failed_login_count,
-                "unusual_hour": timezone.now().hour < 6 or timezone.now().hour > 22,
-            })
-            login_audit = LoginAudit.objects.create(
-                user=user,
-                ip_address=request.META.get("REMOTE_ADDR"),
-                user_agent=user_agent,
-                risk_score=risk["score"],
-                risk_level=risk["level"],
-            )
+            request.session.cycle_key()
+            otp, otp_record = create_login_otp(user, request.META.get("REMOTE_ADDR"))
             try:
                 send_mail(
-                    subject="New login to your healthcare account",
+                    subject="Your AI Healthcare login verification code",
                     message=(
                         f"Hello {user.full_name},\n\n"
-                        f"A login was recorded at {login_audit.login_at}.\n"
-                        f"IP address: {login_audit.ip_address or 'unknown'}\n"
-                        f"Device/browser: {user_agent or 'unknown'}\n\n"
-                        "If this was not you, report it immediately and change your password.\n"
+                        f"Your verification code is: {otp}\n\n"
+                        "This code expires in 5 minutes.\n"
+                        "Do not share this code with anyone.\n\n"
+                        "If you did not attempt to log in, change your password immediately.\n"
                     ),
                     from_email=None,
                     recipient_list=[user.email],
-                    fail_silently=True,
+                    fail_silently=False,
                 )
-                login_audit.email_sent = True
-                login_audit.save(update_fields=["email_sent"])
+                otp_record.last_sent_at = timezone.now()
+                otp_record.save(update_fields=["last_sent_at"])
             except Exception:
-                pass
-            create_security_event("login_success", actor=user, request=request, severity="info", risk_score=risk["score"])
-            create_audit_event("auth.login", actor=user, request=request, result="success", details={"risk_level": risk["level"], "reasons": risk["reasons"]})
-            if risk["score"] >= 60:
-                create_security_event("anomaly", actor=user, request=request, metadata={"reason": "suspicious_login", "risk": risk}, severity="high", risk_score=risk["score"])
-            messages.success(request, "Welcome back.")
-            return redirect("accounts:dashboard")
+                otp_record.used_at = timezone.now()
+                otp_record.save(update_fields=["used_at"])
+                request.session.pop("pending_otp_user_id", None)
+                request.session.pop("pending_otp_id", None)
+                messages.error(request, "We could not send the verification email. Please try again.")
+                return render(request, "accounts/login.html")
+            request.session["pending_otp_user_id"] = user.id
+            request.session["pending_otp_id"] = otp_record.id
+            create_security_event("login_success", actor=user, request=request, severity="info")
+            create_audit_event("auth.login_otp_sent", actor=user, request=request, result="success")
+            if "console" in settings.EMAIL_BACKEND.lower():
+                messages.info(request, "Development mode: SMTP is not configured, so the OTP was printed to the console.")
+            else:
+                messages.info(request, "We sent a verification code to your registered email.")
+            return redirect("accounts:verify_otp")
         cache.set(cache_key, attempts + 1, timeout=900)
         create_security_event("login_failure", actor=None, request=request, metadata={"email": email}, severity="medium", risk_score=0.3)
         messages.error(request, "Invalid email or password.")
@@ -117,6 +116,130 @@ def register_view(request):
     return render(request, "accounts/register.html", {"form": form})
 
 
+def verify_otp_view(request):
+    if request.user.is_authenticated:
+        return redirect("accounts:dashboard")
+    user_id = request.session.get("pending_otp_user_id")
+    otp_id = request.session.get("pending_otp_id")
+    if not user_id or not otp_id:
+        messages.error(request, "No pending verification. Please log in again.")
+        return redirect("accounts:login")
+    user = User.objects.filter(id=user_id).first()
+    otp_record = EmailOTP.objects.filter(id=otp_id, user=user).first()
+    if not user or not otp_record:
+        request.session.pop("pending_otp_user_id", None)
+        request.session.pop("pending_otp_id", None)
+        messages.error(request, "No pending verification. Please log in again.")
+        return redirect("accounts:login")
+
+    ip = request.META.get("REMOTE_ADDR", "unknown")
+    verify_cache_key = f"otp-verify:{user.id}:{ip}"
+    verify_attempts = cache.get(verify_cache_key, 0)
+
+    if request.method == "POST":
+        if verify_attempts >= 10:
+            messages.error(request, "Too many verification attempts. Please try again later.")
+            return render(request, "accounts/verify_otp.html", {"cooldown": resend_cooldown_remaining(user)})
+        submitted_otp = request.POST.get("otp", "").strip()
+        success, message = verify_login_otp(user, submitted_otp, ip)
+        if success:
+            cache.delete(verify_cache_key)
+            request.session.pop("pending_otp_user_id", None)
+            request.session.pop("pending_otp_id", None)
+            login(request, user)
+            if getattr(user, "must_change_password", False):
+                messages.warning(request, "You must change your temporary password before continuing.")
+                return redirect("accounts:password_change")
+            user_agent = request.META.get("HTTP_USER_AGENT", "")[:500]
+            risk = calculate_risk_score({
+                "failed_logins": user.failed_login_count,
+                "unusual_hour": timezone.now().hour < 6 or timezone.now().hour > 22,
+            })
+            login_audit = LoginAudit.objects.create(
+                user=user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+                user_agent=user_agent,
+                risk_score=risk["score"],
+                risk_level=risk["level"],
+            )
+            try:
+                send_mail(
+                    subject="New login to your healthcare account",
+                    message=(
+                        f"Hello {user.full_name},\n\n"
+                        f"A login was recorded at {login_audit.login_at}.\n"
+                        f"IP address: {login_audit.ip_address or 'unknown'}\n"
+                        f"Device/browser: {user_agent or 'unknown'}\n\n"
+                        "If this was not you, report it immediately and change your password.\n"
+                    ),
+                    from_email=None,
+                    recipient_list=[user.email],
+                    fail_silently=True,
+                )
+                login_audit.email_sent = True
+                login_audit.save(update_fields=["email_sent"])
+            except Exception as exc:
+                import logging
+
+                logging.getLogger(__name__).warning("Login notification email failed for user %s: %s", user.id, exc)
+            create_security_event("login_success", actor=user, request=request, severity="info", risk_score=risk["score"])
+            create_audit_event("auth.login", actor=user, request=request, result="success", details={"risk_level": risk["level"], "reasons": risk["reasons"]})
+            messages.success(request, "Welcome back.")
+            return redirect("accounts:dashboard")
+        cache.set(verify_cache_key, verify_attempts + 1, timeout=900)
+        messages.error(request, message)
+    return render(request, "accounts/verify_otp.html", {"cooldown": resend_cooldown_remaining(user)})
+
+
+def resend_otp_view(request):
+    if request.user.is_authenticated:
+        return redirect("accounts:dashboard")
+    user_id = request.session.get("pending_otp_user_id")
+    user = User.objects.filter(id=user_id).first()
+    if not user:
+        messages.error(request, "No pending verification. Please log in again.")
+        return redirect("accounts:login")
+    ip = request.META.get("REMOTE_ADDR", "unknown")
+    resend_cache_key = f"otp-resend:{user.id}:{ip}"
+    resend_attempts = cache.get(resend_cache_key, 0)
+    if resend_attempts >= 5:
+        messages.error(request, "Too many resend requests. Please try again later.")
+        return redirect("accounts:verify_otp")
+    remaining = resend_cooldown_remaining(user)
+    if remaining > 0:
+        messages.error(request, f"Please wait {remaining} seconds before requesting a new code.")
+        return redirect("accounts:verify_otp")
+    cache.set(resend_cache_key, resend_attempts + 1, timeout=3600)
+    otp, otp_record = create_login_otp(user, ip)
+    try:
+        send_mail(
+            subject="Your AI Healthcare login verification code",
+            message=(
+                f"Hello {user.full_name},\n\n"
+                f"Your new verification code is: {otp}\n\n"
+                "This code expires in 5 minutes.\n"
+                "Do not share this code with anyone.\n"
+            ),
+            from_email=None,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        otp_record.last_sent_at = timezone.now()
+        otp_record.save(update_fields=["last_sent_at"])
+    except Exception:
+        otp_record.used_at = timezone.now()
+        otp_record.save(update_fields=["used_at"])
+        messages.error(request, "We could not send the verification email. Please try again.")
+        return redirect("accounts:verify_otp")
+    request.session["pending_otp_id"] = otp_record.id
+    create_audit_event("auth.otp_resent", actor=user, request=request, result="success")
+    if "console" in settings.EMAIL_BACKEND.lower():
+        messages.info(request, "Development mode: SMTP is not configured, so the OTP was printed to the console.")
+    else:
+        messages.info(request, "A new verification code was sent.")
+    return redirect("accounts:verify_otp")
+
+
 @login_required
 def password_change_view(request):
     if request.method == "POST":
@@ -131,7 +254,8 @@ def password_change_view(request):
             messages.error(request, "New passwords do not match.")
         else:
             request.user.set_password(new_password)
-            request.user.save(update_fields=["password"])
+            request.user.must_change_password = False
+            request.user.save(update_fields=["password", "must_change_password"])
             update_session_auth_hash(request, request.user)
             create_audit_event("auth.password_change", actor=request.user, request=request, result="success")
             messages.success(request, "Password changed successfully.")
@@ -220,6 +344,13 @@ def dashboard_router(request):
         }
         return render(request, "accounts/dashboard_lab.html", context)
     if role == Role.ADMIN or user.is_superuser:
+        from audit.services import admin_analytics
+        days = 30
+        try:
+            days = int(request.GET.get("days", 30))
+        except (TypeError, ValueError):
+            days = 30
+        analytics = admin_analytics(days=days)
         users_by_role = User.objects.values("role").annotate(count=Count("id"))
         role_counts = {r["role"]: r["count"] for r in users_by_role}
         context = {
@@ -236,6 +367,16 @@ def dashboard_router(request):
             "keys": KeyMetadata.objects.all()[:5],
             "recent_audit": AuditEvent.objects.all()[:10],
             "recent_events": SecurityEvent.objects.all()[:10],
+            "analytics": analytics,
+            "analytics_json": {
+                "stats": analytics["stats"],
+                "trend_labels": analytics["trend_labels"],
+                "trend_normal": analytics["trend_normal"],
+                "trend_anomalous": analytics["trend_anomalous"],
+                "events_by_type": analytics["events_by_type"],
+                "risk_distribution": analytics["risk_distribution"],
+            },
+            "days": days,
         }
         return render(request, "accounts/dashboard_admin.html", context)
     messages.error(request, "Your account role is not supported.")
@@ -249,7 +390,12 @@ def user_management_view(request):
         form = AdminUserForm(request.POST)
         if form.is_valid():
             user = form.save(commit=False)
-            user.set_password("ChangeMe123!Secure")
+            import secrets
+            import string
+            alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+            temp_password = "".join(secrets.choice(alphabet) for _ in range(16))
+            user.set_password(temp_password)
+            user.must_change_password = True
             user.save()
             from .models import PatientProfile, DoctorProfile, LabTechProfile
 
@@ -259,8 +405,8 @@ def user_management_view(request):
                 DoctorProfile.objects.get_or_create(user=user)
             elif user.role == "lab_tech":
                 LabTechProfile.objects.get_or_create(user=user)
-            create_audit_event("admin.create_user", actor=request.user, target_type="User", target_id=user.id, request=request, result="success")
-            messages.success(request, f"Created {user.email} with temporary password ChangeMe123!Secure.")
+            create_audit_event("admin.create_user", actor=request.user, target_type="User", target_id=user.id, request=request, result="success", details={"must_change_password": True})
+            messages.success(request, f"Created {user.email}. Temporary password (shown once): {temp_password}. User must change it on first login.")
             return redirect("accounts:user_management")
     else:
         form = AdminUserForm()

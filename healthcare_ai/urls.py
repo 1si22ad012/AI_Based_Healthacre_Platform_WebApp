@@ -11,6 +11,7 @@ urlpatterns = [
     path("security-incidents/", views.security_incidents_view, name="security_incidents"),
     path("face-verification/", views.face_verification_view, name="face_verification"),
     path("risk-analysis/", views.risk_analysis_view, name="risk_analysis"),
+    path("risk-dashboard/", views.risk_dashboard_view, name="risk_dashboard"),
     path("incident-summary/<int:incident_id>/", views.incident_summary_view, name="incident_summary"),
     path("voice-command/", views.voice_command_view, name="voice_command"),
 ]

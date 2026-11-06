@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}AI Security Monitoring{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<h2>AI Security Monitoring Dashboard</h2>
+
+<div class="card">
+  <h3>Security Overview</h3>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+    <div class="card"><strong>Total Security Events</strong><br>{{ overview.total_events }}</div>
+    <div class="card"><strong>Total Anomaly Detections</strong><br>{{ overview.total_detections }}</div>
+    <div class="card"><strong>Total Anomalies</strong><br>{{ overview.total_anomalies }}</div>
+    <div class="card"><strong>Normal Activities</strong><br>{{ overview.normal_activities }}</div>
+    <div class="card"><strong>High-Risk Activities</strong><br>{{ overview.high_risk }}</div>
+    <div class="card"><strong>Critical Incidents</strong><br>{{ overview.critical_incidents }}</div>
+    <div class="card"><strong>Open Incidents</strong><br>{{ overview.open_incidents }}</div>
+    <div class="card"><strong>Resolved Incidents</strong><br>{{ overview.resolved_incidents }}</div>
+    <div class="card"><strong>Active Keys</strong><br>{{ overview.active_keys }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Charts</h3>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">
+    <canvas id="normalAnomalyChart"></canvas>
+    <canvas id="severityChart"></canvas>
+    <canvas id="incidentChart"></canvas>
+    <canvas id="riskChart"></canvas>
+    <canvas id="anomaliesOverTimeChart"></canvas>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Recent Anomaly Detections</h3>
+  <table>
+    <tr><th>ID</th><th>Time</th><th>User</th><th>Role</th><th>Score</th><th>Risk</th><th>Anomaly</th><th>Action</th></tr>
+    {% for d in detections %}
+    <tr>
+      <td><a href="{% url 'security:anomaly_detail' d.id %}">{{ d.id }}</a></td>
+      <td>{{ d.created_at }}</td>
+      <td>{{ d.actor.email|default:"-" }}</td>
+      <td>{{ d.user_role }}</td>
+      <td>{{ d.combined_score }}</td>
+      <td>{{ d.risk_score }} ({{ d.risk_level }})</td>
+      <td>{{ d.is_anomaly }}</td>
+      <td>{{ d.action_taken }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="8" class="empty">No detections</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h3>Recent Security Events</h3>
+  <table>
+    <tr><th>Time</th><th>Actor</th><th>Type</th><th>Severity</th><th>Risk</th></tr>
+    {% for e in events %}
+    <tr><td>{{ e.created_at }}</td><td>{{ e.actor.email|default:"-" }}</td><td>{{ e.event_type }}</td><td>{{ e.severity }}</td><td>{{ e.risk_score }}</td></tr>
+    {% empty %}
+    <tr><td colspan="5" class="empty">No events</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<script>
+  (function () {
+    const normalCount = {{ overview.normal_activities }};
+    const anomalyCount = {{ overview.total_anomalies }};
+    new Chart(document.getElementById('normalAnomalyChart'), {
+      type: 'pie',
+      data: { labels: ['Normal', 'Anomalous'], datasets: [{ data: [normalCount, anomalyCount], backgroundColor: ['#16a34a', '#dc2626'] }] },
+      options: { plugins: { title: { display: true, text: 'Normal vs Anomalous' } } }
+    });
+
+    const sevLabels = [];
+    const sevData = [];
+    {% for e in events %}
+    {% endfor %}
+    // severity aggregation from events
+    const sevMap = {};
+    {% for e in events %}
+    sevMap['{{ e.severity }}'] = (sevMap['{{ e.severity }}'] || 0) + 1;
+    {% endfor %}
+    Object.keys(sevMap).forEach(k => { sevLabels.push(k); sevData.push(sevMap[k]); });
+    new Chart(document.getElementById('severityChart'), {
+      type: 'bar',
+      data: { labels: sevLabels, datasets: [{ label: 'Events by Severity', data: sevData, backgroundColor: '#2563eb' }] },
+      options: { plugins: { title: { display: true, text: 'Security Events by Severity' } } }
+    });
+
+    const incMap = {};
+    {% for i in incidents %}
+    incMap['{{ i.status }}'] = (incMap['{{ i.status }}'] || 0) + 1;
+    {% endfor %}
+    const incLabels = Object.keys(incMap);
+    const incData = Object.values(incMap);
+    new Chart(document.getElementById('incidentChart'), {
+      type: 'doughnut',
+      data: { labels: incLabels, datasets: [{ data: incData, backgroundColor: ['#f59e0b','#3b82f6','#10b981','#6b7280','#dc2626'] }] },
+      options: { plugins: { title: { display: true, text: 'Incident Status' } } }
+    });
+
+    const riskLabels = [];
+    const riskData = [];
+    const riskMap = {};
+    {% for d in detections %}
+    riskMap['{{ d.risk_level }}'] = (riskMap['{{ d.risk_level }}'] || 0) + 1;
+    {% endfor %}
+    Object.keys(riskMap).forEach(k => { riskLabels.push(k); riskData.push(riskMap[k]); });
+    new Chart(document.getElementById('riskChart'), {
+      type: 'bar',
+      data: { labels: riskLabels, datasets: [{ label: 'Detections by Risk', data: riskData, backgroundColor: '#7c3aed' }] },
+      options: { plugins: { title: { display: true, text: 'Risk Score Distribution' } } }
+    });
+
+    const timeMap = {};
+    {% for d in detections %}
+    (function () {
+      const day = '{{ d.created_at|date:"Y-m-d" }}';
+      timeMap[day] = (timeMap[day] || 0) + 1;
+    })();
+    {% endfor %}
+    const timeLabels = Object.keys(timeMap).sort();
+    const timeData = timeLabels.map(k => timeMap[k]);
+    new Chart(document.getElementById('anomaliesOverTimeChart'), {
+      type: 'line',
+      data: { labels: timeLabels, datasets: [{ label: 'Detections over time', data: timeData, borderColor: '#dc2626', fill: false }] },
+      options: { plugins: { title: { display: true, text: 'Anomalies Over Time' } } }
+    });
+  })();
+</script>
+{% endblock %}
